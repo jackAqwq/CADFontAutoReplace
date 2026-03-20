@@ -31,7 +31,11 @@ public class PluginEntry : IExtensionApplication
         {
             log.Info("AFR 插件正在初始化...");
 
-            // 第一阶段: 注册表初始化（自动加载、路径修复、默认配置）
+            // 第零阶段: 提前触发系统字体索引的后台构建
+            // 与后续初始化和 CAD 启动并行执行，Idle 时通常已就绪
+            FontDetector.PrewarmSystemFonts();
+
+            // 第一阶段: 注册表初始化（自动加载、默认配置）
             AppInitializer.Initialize();
 
             // 第二阶段: 注册文档事件以支持多文档（MDI）

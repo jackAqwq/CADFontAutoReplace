@@ -25,11 +25,23 @@ internal sealed record FontCheckResult(
 /// </summary>
 internal static class FontDetector
 {
-    private static readonly Lazy<HashSet<string>> _systemFontNames = new(BuildSystemFontIndex);
+    // 系统字体索引 — 通过 Task.Run 在后台线程构建，避免阻塞 UI
+    // 调用 PrewarmSystemFonts() 提前触发，Idle 时通常已就绪
+    private static readonly Task<HashSet<string>> _systemFontNamesTask = Task.Run(BuildSystemFontIndex);
 
     // FindFile 结果缓存 — 字体可用性在 CAD 会话期间不变
     // Key: "{hint}:{normalizedFileName}" Value: 是否找到
     private static readonly ConcurrentDictionary<string, bool> _findFileCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 提前触发系统字体索引的后台构建。
+    /// 应在插件初始化时尽早调用，使字体枚举与 CAD 启动并行执行。
+    /// </summary>
+    public static void PrewarmSystemFonts()
+    {
+        // 访问静态类即触发 _systemFontNamesTask 的 Task.Run
+        // 此方法本身不阻塞 — 仅确保后台任务已启动
+    }
 
     /// <summary>
     /// 扫描数据库中所有文字样式，返回存在缺失字体的样式列表。
@@ -119,7 +131,7 @@ internal static class FontDetector
         if (string.IsNullOrWhiteSpace(typeface)) return true;
 
         // 检查系统已安装字体（包含本地化名称）
-        if (_systemFontNames.Value.Contains(typeface))
+        if (_systemFontNamesTask.Result.Contains(typeface))
             return true;
 
         // 若引用了具体字体文件名，通过 FindFile 检查
