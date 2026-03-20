@@ -137,7 +137,7 @@ public class PluginEntry : IExtensionApplication
 
     private static void OnDocumentActivated(object sender, DocumentCollectionEventArgs e)
     {
-        if (e.Document != null)
+        if (e.Document != null && !DocumentContextManager.Instance.HasExecuted(e.Document))
             ScheduleExecution(e.Document, "DocumentActivated");
     }
 

@@ -5,6 +5,8 @@ namespace AFR_ACAD2026.Core;
 
 /// <summary>
 /// 跟踪已处理的文档，防止重复执行。
+/// 使用 Dictionary 按 Database.Filename 唯一标识每个图纸，
+/// 未保存图纸使用 Document.Name 作为临时标识。
 /// 线程安全的单例模式，支持文档关闭时清理。
 /// </summary>
 internal sealed class DocumentContextManager
@@ -12,7 +14,9 @@ internal sealed class DocumentContextManager
     private static readonly Lazy<DocumentContextManager> _instance = new(() => new DocumentContextManager());
     public static DocumentContextManager Instance => _instance.Value;
 
-    private readonly HashSet<string> _executedDocuments = new(StringComparer.OrdinalIgnoreCase);
+    // Key: 图纸唯一标识（Database.Filename 或临时标识）
+    // Value: 首次处理时间
+    private readonly Dictionary<string, DateTime> _executedDocuments = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
     private DocumentContextManager() { }
@@ -22,27 +26,29 @@ internal sealed class DocumentContextManager
         if (doc == null) return true;
         lock (_lock)
         {
-            return _executedDocuments.Contains(GetDocumentKey(doc));
+            return _executedDocuments.ContainsKey(GetDocumentKey(doc));
         }
     }
 
     public void MarkExecuted(Document doc)
     {
         if (doc == null) return;
+        var key = GetDocumentKey(doc);
         lock (_lock)
         {
-            _executedDocuments.Add(GetDocumentKey(doc));
+            _executedDocuments[key] = DateTime.Now;
         }
     }
 
     public void Remove(Document doc)
     {
         if (doc == null) return;
+        var key = GetDocumentKey(doc);
         lock (_lock)
         {
-            _executedDocuments.Remove(GetDocumentKey(doc));
+            _executedDocuments.Remove(key);
         }
-        LogService.Instance.ResetHeaderForDocument(GetDocumentKey(doc));
+        LogService.Instance.ResetHeaderForDocument(key);
     }
 
     public void Clear()
@@ -53,8 +59,14 @@ internal sealed class DocumentContextManager
         }
     }
 
+    /// <summary>
+    /// 获取文档唯一标识。
+    /// 优先使用 Database.Filename（已保存图纸的完整路径），
+    /// 未保存图纸（Filename 为空）则回退到 Document.Name 作为临时标识。
+    /// </summary>
     private static string GetDocumentKey(Document doc)
     {
-        return doc.Name;
+        var dbFilename = doc.Database?.Filename;
+        return string.IsNullOrEmpty(dbFilename) ? doc.Name : dbFilename;
     }
 }
