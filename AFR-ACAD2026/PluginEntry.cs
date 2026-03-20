@@ -12,7 +12,8 @@ namespace AFR_ACAD2026;
 /// <summary>
 /// 插件入口点，实现 IExtensionApplication。
 /// 负责初始化、事件注册和生命周期管理。
-/// 文档事件通过 Idle 延迟执行，确保日志在 AutoCAD 完成所有输出后最后显示。
+/// 仅监听 DocumentCreated 事件，通过 Idle 延迟执行核心逻辑。
+/// 不监听 DocumentActivated，避免切换图纸时重复触发。
 /// </summary>
 public class PluginEntry : IExtensionApplication
 {
@@ -32,9 +33,9 @@ public class PluginEntry : IExtensionApplication
             AppInitializer.Initialize();
 
             // 第二阶段: 注册文档事件以支持多文档（MDI）
+            // 仅监听 DocumentCreated（新建/打开），不监听 DocumentActivated（切换）
             var docMgr = AcadApp.DocumentManager;
             docMgr.DocumentCreated += OnDocumentCreated;
-            docMgr.DocumentActivated += OnDocumentActivated;
             docMgr.DocumentToBeDestroyed += OnDocumentToBeDestroyed;
 
             // 第三阶段: 延迟启动执行 — 不在此处获取文档引用，避免使用未就绪的文档
@@ -81,7 +82,6 @@ public class PluginEntry : IExtensionApplication
         {
             var docMgr = AcadApp.DocumentManager;
             docMgr.DocumentCreated -= OnDocumentCreated;
-            docMgr.DocumentActivated -= OnDocumentActivated;
             docMgr.DocumentToBeDestroyed -= OnDocumentToBeDestroyed;
         }
         catch { }
@@ -133,12 +133,6 @@ public class PluginEntry : IExtensionApplication
     {
         if (e.Document != null)
             ScheduleExecution(e.Document, "DocumentCreated");
-    }
-
-    private static void OnDocumentActivated(object sender, DocumentCollectionEventArgs e)
-    {
-        if (e.Document != null && !DocumentContextManager.Instance.HasExecuted(e.Document))
-            ScheduleExecution(e.Document, "DocumentActivated");
     }
 
     private static void OnDocumentToBeDestroyed(object sender, DocumentCollectionEventArgs e)
