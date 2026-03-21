@@ -10,8 +10,7 @@ AutoCAD 插件，自动检测并替换图纸中缺失的 SHX / TrueType / 大字
 |---|---|
 | `AFR` | 插件代号（Auto Font Replace 的缩写，可忽略） |
 | `A` | **A**utodesk |
-| `CAD` | Auto**CAD** |
-| `2026` | 对应的 AutoCAD **版本号** |
+| `CAD2026` | CAD **版本号** |
 
 > 💡 请根据自己安装的 CAD 版本下载对应的 DLL 文件。
 
@@ -30,14 +29,6 @@ AutoCAD 插件，自动检测并替换图纸中缺失的 SHX / TrueType / 大字
 - **多文档支持** — MDI 环境下每个图纸独立处理，互不干扰
 - **随 CAD 启动** — 首次 NETLOAD 后自动注册，后续启动 AutoCAD 时自动加载
 - **完整卸载** — 提供 `AFRUNLOAD` 命令，一键注销事件并清除注册表项
-
-## 系统要求
-
-| 项目 | 要求 |
-|---|---|
-| AutoCAD | 见上方 [支持的 AutoCAD 版本](#支持的-autocad-版本) |
-| 运行时 | .NET 8.0 |
-| 操作系统 | Windows 10 / 11（x64） |
 
 ## 安装
 
@@ -71,7 +62,7 @@ AutoCAD 插件，自动检测并替换图纸中缺失的 SHX / TrueType / 大字
 - **大字体** — 用于替换缺失的大字体（可选）
 - 下拉列表自动扫描 AutoCAD Fonts 目录下的 `.shx` 文件，支持搜索输入
 
-## 新手教程（零基础手把手）
+## 使用教程
 
 如果你是第一次使用 AutoCAD 插件，请按以下步骤操作。
 
@@ -137,6 +128,9 @@ AutoCAD 插件，自动检测并替换图纸中缺失的 SHX / TrueType / 大字
 ### 如何修改字体配置？
 
 随时在命令行输入 `AFR`，重新选择字体并确认即可。新配置会立即对当前图纸生效。
+**注1：请在配置替换字体时清楚的知道SHX字体和大字体的区别，也能正确的选择字体，错误的选择可能导致替换后文字显示异常。**
+**注2：如果在选择替换字体插件自动执行替换后发现字体显示异常，请不要保存图纸，而是直接关闭重新打开图纸，重新执行 `AFR` 选择其他字体进行替换，直到字体显示正常。**
+**注2：如果不知道选择那个字体则建议使用`yjkeng.shx`做为SHX字体，`tssdchn.shx`作为大字体。**
 
 ### 如何卸载插件？
 
@@ -152,142 +146,3 @@ AutoCAD 插件，自动检测并替换图纸中缺失的 SHX / TrueType / 大字
 - 下次启动 AutoCAD 不再自动加载
 
 > 💡 如果需要重新安装，重启 AutoCAD 后再次 `NETLOAD` 即可。
-
-### 常见问题
-
-<details>
-<summary><b>Q: 加载后命令行没有任何显示？</b></summary>
-
-确认你加载的插件是CAD对应版本的DLL，和本项目支持的CAD。
-</details>
-
-<details>
-<summary><b>Q: 打开图纸后字体仍然缺失？</b></summary>
-
-请检查是否已执行过 `AFR` 命令完成首次配置。插件在首次配置前不会自动替换字体。
-</details>
-
-<details>
-<summary><b>Q: 想把插件移动到其他文件夹？</b></summary>
-
-插件无法在移动后自动修复路径。请按以下步骤操作：
-1. 打开 CAD，输入 `AFRUNLOAD` 卸载插件
-2. 关闭 CAD
-3. 将 DLL 文件移动到新位置
-4. 重新打开 CAD，输入 `NETLOAD` 加载新位置的 DLL
-
-加载后插件会自动将新路径写入注册表，后续启动无需再次 NETLOAD。
-</details>
-
-<details>
-<summary><b>Q: 替换后文字显示不正确？</b></summary>
-
-尝试选择更通用的替换字体。推荐：
-- SHX字体：`txt.shx`（英文图纸）或 `simplex.shx`
-- 大字体：`bigfont.shx` 或 `gbcbig.shx`（中文图纸）
-</details>
-
-<details>
-<summary><b>Q: 如何知道插件是否在工作？</b></summary>
-
-打开图纸后查看命令行底部。如果有缺失字体，会显示替换记录和统计。如果所有字体都正常，会显示"未检测到缺失字体"。
-</details>
-
-## 日志输出
-
-插件在命令行输出结构化日志，每个图纸仅显示一次日志头：
-
-```
-=============================================
-CAD缺失字体自动替换工具 AFR
-版本：v2.0-2026/03/21
-插件首次加载运行必须执行：AFR
-命令说明：
- AFR - 配置替换字体
- AFRUNLOAD - 卸载插件
-=============================================
-[样式: Standard]-TrueType字体缺失: Arial → 替换为: txt.shx
-[样式: Notes]-SHX字体缺失: romans.shx → 替换为: txt.shx
-[样式: Chinese]-大字体缺失: chineset.shx → 替换为: bigfont.shx
-[信息] 正在处理 'Drawing1.dwg' (触发源: Startup)
-替换TrueType字体：1；替换SHX字体：1；替换BigFont字体：1；
-共替换缺失字体数量：3
-```
-
-## 项目结构
-
-```
-AFR-ACAD2026/
-├── PluginEntry.cs                  # 插件入口点，事件注册与生命周期管理
-├── Commands/
-│   └── AfrCommands.cs              # AFR / AFRUNLOAD 命令定义
-├── Core/
-│   ├── AppInitializer.cs           # 注册表初始化与默认配置创建
-│   ├── ExecutionController.cs      # 统一执行控制器（门控、防重复）
-│   └── DocumentContextManager.cs   # 文档处理状态跟踪
-├── Services/
-│   ├── LogService.cs               # 缓冲日志（优先级分桶 + 延迟输出）
-│   ├── ConfigService.cs            # 注册表配置（带缓存）
-│   ├── RegistryService.cs          # 底层注册表读写
-│   ├── FontDetector.cs             # 缺失字体检测（FindFile 缓存）
-│   └── FontReplacer.cs             # 字体替换执行
-└── UI/
-    ├── FontSelectionWindow.xaml     # 字体配置界面（HandyControl）
-    ├── FontSelectionWindow.xaml.cs  # 窗口生命周期（无业务逻辑）
-    └── FontSelectionViewModel.cs   # 字体选择 ViewModel
-```
-
-## 技术架构
-
-### 执行流程
-
-```
-AutoCAD 启动
-  │
-  ├─ PluginEntry.Initialize()
-  │   ├─ AppInitializer — 注册表初始化 / 默认配置
-  │   ├─ 注册 DocumentCreated 事件
-  │   └─ ScheduleExecution(null, "Startup") — 入队等待 Idle
-  │
-  └─ Application.Idle（AutoCAD 就绪后）
-      └─ ExecutionController.Execute()
-          ├─ FontDetector.DetectMissingFonts() — 扫描文字样式表
-          ├─ FontReplacer.ReplaceMissingFonts() — 执行替换
-          ├─ LogService.AddStatistics() — 生成统计
-          └─ LogService.Flush() — 一次性输出全部日志
-```
-
-### 设计要点
-
-- **延迟执行** — 所有文档处理通过 `Application.Idle` 延迟，确保 AutoCAD 完成加载后再执行
-- **缓冲日志** — 日志先写入缓存，按优先级分桶排序后一次性输出，避免与 AutoCAD 消息交错
-- **FindFile 缓存** — `ConcurrentDictionary` 缓存字体查找结果，避免重复磁盘 I/O
-- **线程安全** — 调度队列、配置缓存、日志缓冲均有锁保护；文档引用使用前检查 `IsDisposed`
-- **幂等初始化** — 注册表写入采用 read-then-write 模式，值相同时跳过写入
-
-## 注册表
-
-插件在以下路径存储配置（自动创建）：
-
-```
-HKCU\Software\Autodesk\AutoCAD\R25.1\ACAD-xxxx:xxx\Applications\AFR-ACAD2026
-  ├─ LOADER        (String)  — DLL 完整路径
-  ├─ LOADCTRLS     (DWORD)   — 2（随 AutoCAD 启动加载）
-  ├─ MANAGED       (DWORD)   — 1（托管 .NET 插件）
-  ├─ DESCRIPTION   (String)  — 插件描述
-  ├─ MainFont      (String)  — 配置的主替换字体
-  ├─ BigFont       (String)  — 配置的大替换字体
-  └─ IsInitialized (DWORD)   — 是否已完成首次配置
-```
-
-`AFRUNLOAD` 命令仅删除 `AFR-ACAD2026` 项，不影响其他插件注册表项。
-
-## 构建
-
-```powershell
-dotnet build AFR-ACAD2026/AFR-ACAD2026.csproj -c Release
-```
-
-依赖项通过 NuGet 自动恢复：
-- `AutoCAD.NET` 25.1.0
-- `HandyControl` 3.5.1

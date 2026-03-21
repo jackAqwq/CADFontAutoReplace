@@ -1,3 +1,4 @@
+using System.Reflection;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.Runtime;
 using AFR_ACAD2026.Core;
@@ -23,6 +24,34 @@ public class PluginEntry : IExtensionApplication
     private static bool _idleHandlerRegistered;
     private static volatile bool _unloaded;
     private static readonly object _scheduleLock = new();
+
+    /// <summary>
+    /// 静态构造函数：在类型首次使用时注册嵌入程序集解析。
+    /// 必须在 Initialize() 之前完成，因为 HandyControl 类型的引用
+    /// 可能在 JIT 编译命令方法时就需要解析。
+    /// </summary>
+    static PluginEntry()
+    {
+        AppDomain.CurrentDomain.AssemblyResolve += OnResolveEmbeddedAssembly;
+    }
+
+    /// <summary>
+    /// 从嵌入资源中加载第三方程序集（如 HandyControl）。
+    /// 实现单 DLL 分发 — 所有依赖嵌入到 AFR-ACAD2026.dll 中。
+    /// </summary>
+    private static Assembly? OnResolveEmbeddedAssembly(object? sender, ResolveEventArgs args)
+    {
+        var assemblyName = new AssemblyName(args.Name).Name;
+        if (assemblyName == null) return null;
+
+        var resourceName = assemblyName + ".dll";
+        using var stream = typeof(PluginEntry).Assembly.GetManifestResourceStream(resourceName);
+        if (stream == null) return null;
+
+        var data = new byte[stream.Length];
+        stream.ReadExactly(data);
+        return Assembly.Load(data);
+    }
 
     public void Initialize()
     {
