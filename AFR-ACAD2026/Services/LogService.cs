@@ -144,7 +144,8 @@ internal sealed class LogService
                     "\n=============================================" +
                     "\nCAD缺失字体自动替换工具 AFR" +
                     "\n版本：v2.5-2026/03/21" +
-                    "\n插件首次加载运行必须执行：AFR" +
+                    "\n项目地址(国外)：https://github.com/splrad/CADFontAutoReplace.git" +
+                    "\n项目地址(国内)：https://gitee.com/splrad/CADFontAutoReplace.git" +
                     "\n命令说明：" +
                     "\n AFR - 配置替换字体" +
                     "\n AFRUNLOAD - 卸载插件" +
