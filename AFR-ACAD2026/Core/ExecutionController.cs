@@ -31,15 +31,13 @@ internal sealed class ExecutionController
             // 门控: 仅在已初始化时自动执行
             if (!config.IsInitialized)
             {
-                log.Info($"未初始化 — 已跳过 ({triggerSource})。");
+                log.Info("请先执行 AFR 命令配置替换字体，插件才会自动替换缺失字体。");
                 return;
             }
 
             // 重复执行防护
             var contextMgr = DocumentContextManager.Instance;
             if (contextMgr.HasExecuted(doc)) return;
-
-            log.Info($"正在处理 '{doc.Name}' (触发源: {triggerSource})");
 
             // 获取文档写入锁
             using (doc.LockDocument())
