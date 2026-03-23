@@ -30,27 +30,25 @@ public partial class FontReplacementLogWindow : Window
 
         try
         {
-            var replacements = new List<StyleFontReplacement>();
-            foreach (var item in ViewModel.Items)
+            // 按样式名称分组，将主字体行和大字体行合并为一条替换指令
+            var map = new Dictionary<string, StyleFontReplacement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in ViewModel.Items)
             {
-                if (item.IsApplied) continue;
+                if (row.IsApplied) continue;
+                string font = row.SelectedReplacement?.Trim() ?? string.Empty;
+                if (string.IsNullOrEmpty(font)) continue;
 
-                string mainFont = item.IsMainFontMissing
-                    ? (item.SelectedMainReplacement?.Trim() ?? string.Empty)
-                    : string.Empty;
-                string bigFont = item.IsBigFontMissing
-                    ? (item.SelectedBigReplacement?.Trim() ?? string.Empty)
-                    : string.Empty;
+                if (!map.TryGetValue(row.StyleName, out var existing))
+                    existing = new StyleFontReplacement(row.StyleName, false, string.Empty, string.Empty);
 
-                if (!string.IsNullOrEmpty(mainFont) || !string.IsNullOrEmpty(bigFont))
-                {
-                    replacements.Add(new StyleFontReplacement(
-                        item.StyleName, item.IsTrueType, mainFont, bigFont));
-                }
+                map[row.StyleName] = row.IsBigFont
+                    ? existing with { BigFontReplacement = font }
+                    : existing with { MainFontReplacement = font, IsTrueType = row.IsTrueType };
             }
 
-            if (replacements.Count > 0)
+            if (map.Count > 0)
             {
+                var replacements = map.Values.ToList();
                 using (doc.LockDocument())
                 {
                     int count = FontReplacer.ReplaceByStyleMapping(doc.Database, replacements);
@@ -61,10 +59,10 @@ public partial class FontReplacementLogWindow : Window
                     }
                 }
 
-                foreach (var item in ViewModel.Items)
+                foreach (var row in ViewModel.Items)
                 {
-                    if (!item.IsApplied)
-                        item.IsApplied = true;
+                    if (!row.IsApplied)
+                        row.IsApplied = true;
                 }
             }
         }

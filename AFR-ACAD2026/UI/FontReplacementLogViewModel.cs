@@ -6,47 +6,31 @@ using AFR_ACAD2026.Services;
 namespace AFR_ACAD2026.UI;
 
 /// <summary>
-/// 字体替换日志中的单个样式条目。
-/// 显示缺失字体信息并提供手动替换选项。
+/// 字体替换日志中的单行条目（每个缺失字体一行）。
+/// 将"样式+主字体缺失"和"样式+大字体缺失"拆分为独立行，
+/// 使表格布局紧凑统一。
 /// </summary>
-internal sealed class FontStyleLogItem : INotifyPropertyChanged
+internal sealed class FontReplacementRow : INotifyPropertyChanged
 {
-    private string _selectedMainReplacement = string.Empty;
-    private string _selectedBigReplacement = string.Empty;
+    private string _selectedReplacement = string.Empty;
     private bool _isApplied;
 
     public string StyleName { get; }
-    public string OriginalFont { get; }
-    public string OriginalBigFont { get; }
-    public bool IsMainFontMissing { get; }
-    public bool IsBigFontMissing { get; }
+    public string FontCategory { get; }
+    public string MissingFontName { get; }
     public bool IsTrueType { get; }
-    public string FontTypeTag => IsTrueType ? "TrueType" : "SHX";
+    public bool IsBigFont { get; }
 
-    /// <summary>可供选择的主字体列表（根据字体类型自动为 SHX 或 TrueType 列表）。</summary>
-    public ObservableCollection<string> AvailableMainFonts { get; }
+    /// <summary>可供选择的替换字体列表（根据字体类型自动匹配）。</summary>
+    public ObservableCollection<string> AvailableFonts { get; }
 
-    /// <summary>可供选择的大字体列表（始终为 SHX 字体）。</summary>
-    public ObservableCollection<string> AvailableBigFonts { get; }
-
-    public string SelectedMainReplacement
+    public string SelectedReplacement
     {
-        get => _selectedMainReplacement;
+        get => _selectedReplacement;
         set
         {
-            if (_selectedMainReplacement == value) return;
-            _selectedMainReplacement = value ?? string.Empty;
-            OnPropertyChanged();
-        }
-    }
-
-    public string SelectedBigReplacement
-    {
-        get => _selectedBigReplacement;
-        set
-        {
-            if (_selectedBigReplacement == value) return;
-            _selectedBigReplacement = value ?? string.Empty;
+            if (_selectedReplacement == value) return;
+            _selectedReplacement = value ?? string.Empty;
             OnPropertyChanged();
         }
     }
@@ -65,27 +49,22 @@ internal sealed class FontStyleLogItem : INotifyPropertyChanged
 
     public string StatusText => IsApplied ? "✓ 已替换" : "待处理";
 
-    public FontStyleLogItem(
-        FontCheckResult result,
-        string autoReplacedMainFont,
-        string autoReplacedBigFont,
-        ObservableCollection<string> shxFonts,
-        ObservableCollection<string> trueTypeFonts)
+    public FontReplacementRow(
+        string styleName,
+        string fontCategory,
+        string missingFontName,
+        bool isTrueType,
+        bool isBigFont,
+        ObservableCollection<string> availableFonts,
+        string autoReplacement)
     {
-        StyleName = result.StyleName;
-        OriginalFont = result.IsTrueType
-            ? (!string.IsNullOrEmpty(result.TypeFace) ? result.TypeFace : result.FileName)
-            : result.FileName;
-        OriginalBigFont = result.BigFontFileName;
-        IsMainFontMissing = result.IsMainFontMissing;
-        IsBigFontMissing = result.IsBigFontMissing;
-        IsTrueType = result.IsTrueType;
-
-        AvailableMainFonts = result.IsTrueType ? trueTypeFonts : shxFonts;
-        AvailableBigFonts = shxFonts;
-
-        _selectedMainReplacement = autoReplacedMainFont;
-        _selectedBigReplacement = autoReplacedBigFont;
+        StyleName = styleName;
+        FontCategory = fontCategory;
+        MissingFontName = missingFontName;
+        IsTrueType = isTrueType;
+        IsBigFont = isBigFont;
+        AvailableFonts = availableFonts;
+        _selectedReplacement = autoReplacement;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -96,11 +75,11 @@ internal sealed class FontStyleLogItem : INotifyPropertyChanged
 
 /// <summary>
 /// 字体替换日志窗口的 ViewModel。
-/// 管理缺失字体列表、可用字体列表及统计信息。
+/// 将检测结果拆平为每个缺失字体一行，便于表格紧凑显示。
 /// </summary>
 internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
 {
-    public ObservableCollection<FontStyleLogItem> Items { get; } = [];
+    public ObservableCollection<FontReplacementRow> Items { get; } = [];
     public string SummaryText { get; }
     public bool HasItems => Items.Count > 0;
     public bool HasNoItems => !HasItems;
@@ -119,23 +98,36 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
             int ttCount = 0, shxCount = 0, bigCount = 0;
             foreach (var r in detectionResults)
             {
-                string autoMain = r.IsMainFontMissing
-                    ? (r.IsTrueType ? globalTrueTypeFont : globalMainFont)
-                    : string.Empty;
-                string autoBig = r.IsBigFontMissing ? globalBigFont : string.Empty;
-
-                Items.Add(new FontStyleLogItem(r, autoMain, autoBig, shxFonts, ttFonts));
-
                 if (r.IsMainFontMissing)
                 {
+                    string category = r.IsTrueType ? "TrueType" : "SHX";
+                    string missingName = r.IsTrueType
+                        ? (!string.IsNullOrEmpty(r.TypeFace) ? r.TypeFace : r.FileName)
+                        : r.FileName;
+                    string autoReplacement = r.IsTrueType ? globalTrueTypeFont : globalMainFont;
+                    var fonts = r.IsTrueType ? ttFonts : shxFonts;
+
+                    Items.Add(new FontReplacementRow(
+                        r.StyleName, category, missingName,
+                        r.IsTrueType, false, fonts, autoReplacement));
+
                     if (r.IsTrueType) ttCount++;
                     else shxCount++;
                 }
-                if (r.IsBigFontMissing) bigCount++;
+
+                if (r.IsBigFontMissing)
+                {
+                    Items.Add(new FontReplacementRow(
+                        r.StyleName, "大字体", r.BigFontFileName,
+                        false, true, shxFonts, globalBigFont));
+
+                    bigCount++;
+                }
             }
 
             int total = ttCount + shxCount + bigCount;
-            SummaryText = $"检测到 {Items.Count} 个样式共 {total} 个缺失字体 (TrueType: {ttCount}, SHX: {shxCount}, 大字体: {bigCount})";
+            int styleCount = detectionResults.Count;
+            SummaryText = $"检测到 {styleCount} 个样式共 {total} 个缺失字体 (TrueType: {ttCount}, SHX: {shxCount}, 大字体: {bigCount})";
         }
         else
         {
