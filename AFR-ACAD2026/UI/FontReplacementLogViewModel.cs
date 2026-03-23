@@ -60,12 +60,21 @@ internal sealed class FontReplacementRow : INotifyPropertyChanged
 
 /// <summary>
 /// 字体替换日志窗口的 ViewModel。
-/// 将检测结果拆平为每个缺失字体一行，便于表格紧凑显示。
+/// 将检测结果拆平为每个缺失字体一行，按类型分组排序（SHX → TrueType → 大字体）。
 /// </summary>
 internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
 {
     public ObservableCollection<FontReplacementRow> Items { get; } = [];
     public string SummaryText { get; }
+    public int ShxCount { get; }
+    public int TrueTypeCount { get; }
+    public int BigFontCount { get; }
+    public string ShxLabel => $"SHX  {ShxCount}";
+    public string TrueTypeLabel => $"TrueType  {TrueTypeCount}";
+    public string BigFontLabel => $"大字体  {BigFontCount}";
+    public bool HasShx => ShxCount > 0;
+    public bool HasTrueType => TrueTypeCount > 0;
+    public bool HasBigFont => BigFontCount > 0;
     public bool HasItems => Items.Count > 0;
     public bool HasNoItems => !HasItems;
 
@@ -81,6 +90,10 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
         if (detectionResults != null && detectionResults.Count > 0)
         {
             int ttCount = 0, shxCount = 0, bigCount = 0;
+            var shxRows = new List<FontReplacementRow>();
+            var ttRows = new List<FontReplacementRow>();
+            var bigRows = new List<FontReplacementRow>();
+
             foreach (var r in detectionResults)
             {
                 if (r.IsMainFontMissing)
@@ -92,31 +105,38 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
                     string autoReplacement = r.IsTrueType ? globalTrueTypeFont : globalMainFont;
                     var fonts = r.IsTrueType ? ttFonts : shxFonts;
 
-                    Items.Add(new FontReplacementRow(
+                    var row = new FontReplacementRow(
                         r.StyleName, category, missingName,
-                        r.IsTrueType, false, fonts, autoReplacement));
+                        r.IsTrueType, false, fonts, autoReplacement);
 
-                    if (r.IsTrueType) ttCount++;
-                    else shxCount++;
+                    if (r.IsTrueType) { ttRows.Add(row); ttCount++; }
+                    else { shxRows.Add(row); shxCount++; }
                 }
 
                 if (r.IsBigFontMissing)
                 {
-                    Items.Add(new FontReplacementRow(
+                    bigRows.Add(new FontReplacementRow(
                         r.StyleName, "大字体", r.BigFontFileName,
                         false, true, shxFonts, globalBigFont));
-
                     bigCount++;
                 }
             }
 
+            // 按类型分组排序：SHX → TrueType → 大字体
+            foreach (var row in shxRows) Items.Add(row);
+            foreach (var row in ttRows) Items.Add(row);
+            foreach (var row in bigRows) Items.Add(row);
+
+            ShxCount = shxCount;
+            TrueTypeCount = ttCount;
+            BigFontCount = bigCount;
+
             int total = ttCount + shxCount + bigCount;
-            int styleCount = detectionResults.Count;
-            SummaryText = $"检测到 {styleCount} 个样式共 {total} 个缺失字体 (TrueType: {ttCount}, SHX: {shxCount}, 大字体: {bigCount})";
+            SummaryText = $"{detectionResults.Count} 个样式 · {total} 个缺失";
         }
         else
         {
-            SummaryText = "当前图纸未检测到缺失字体。";
+            SummaryText = "未检测到缺失字体";
         }
     }
 
