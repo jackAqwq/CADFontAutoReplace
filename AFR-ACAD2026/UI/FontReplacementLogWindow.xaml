@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:hc="https://handyorg.github.io/handycontrol"
         Title="AFR — 字体替换日志"
-        Width="700" Height="520"
+        Width="580" Height="480"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -79,9 +79,9 @@
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="120"/>
-                                    <ColumnDefinition Width="68"/>
-                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="62"/>
+                                    <ColumnDefinition Width="110"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="样式名" FontSize="11" FontWeight="SemiBold"
@@ -105,9 +105,9 @@
                                                 BorderThickness="0,0,0,1">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="120"/>
-                                                    <ColumnDefinition Width="68"/>
-                                                    <ColumnDefinition Width="120"/>
+                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="62"/>
+                                                    <ColumnDefinition Width="110"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="{Binding StyleName}"
