@@ -129,7 +129,7 @@ internal sealed class LogService
                 editor.WriteMessage(
                     "\n===================================================================" +
                     "\nCAD缺失字体自动替换工具 AFR" +
-                    "\n版本：v2.8-2026/03/25" +
+                    "\n版本：v2.9-2026/03/25" +
                     "\n项目地址(国外)：https://github.com/splrad/CADFontAutoReplace.git" +
                     "\n项目地址(国内)：https://gitee.com/splrad/CADFontAutoReplace.git" +
                     "\n命令说明：" +
