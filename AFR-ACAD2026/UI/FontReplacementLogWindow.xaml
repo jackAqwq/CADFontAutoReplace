@@ -102,19 +102,23 @@
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="4.5*"/>
+                                    <ColumnDefinition Width="3*"/>
                                     <ColumnDefinition Width="100"/>
                                     <ColumnDefinition Width="2*"/>
                                     <ColumnDefinition Width="2*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="样式名" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+										   VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1" Text="类型" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+										   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="缺失字体" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+										   VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="3" Text="替换字体" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource PrimaryTextBrush}" Margin="4,0,0,0"/>
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+										   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -128,7 +132,7 @@
                                                 BorderThickness="0,0,0,1">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="4.5*"/>
+                                                    <ColumnDefinition Width="3*"/>
                                                     <ColumnDefinition Width="100"/>
                                                     <ColumnDefinition Width="2*"/>
                                                     <ColumnDefinition Width="2*"/>
@@ -140,7 +144,7 @@
                                                            ToolTip="{Binding StyleName}"/>
                                                 <Border Grid.Column="1" CornerRadius="3"
                                                         Padding="4,1" Margin="0,0,4,0"
-                                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
