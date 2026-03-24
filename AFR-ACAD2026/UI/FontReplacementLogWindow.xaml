@@ -168,8 +168,7 @@
                                                           Style="{StaticResource ComboBoxExtend}"
                                                           ItemsSource="{Binding AvailableFonts}"
                                                           Text="{Binding SelectedReplacement, UpdateSourceTrigger=PropertyChanged}"
-                                                          DropDownClosed="OnComboBoxDropDownClosed"
-                                                          DropDownOpened="OnComboBoxDropDownOpened"/>
+                                                          Loaded="OnComboBoxLoaded"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -204,22 +203,19 @@
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableShxFonts}"
                               Text="{Binding BatchShxFont, UpdateSourceTrigger=PropertyChanged}"
-                              DropDownClosed="OnComboBoxDropDownClosed"
-                              DropDownOpened="OnComboBoxDropDownOpened"/>
+                              Loaded="OnComboBoxLoaded"/>
                     <ComboBox Width="90" Height="28" Margin="4,0,0,0" IsEditable="True" IsTextSearchEnabled="True"
                               hc:InfoElement.Placeholder="SHX大字体..."
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableShxFonts}"
                               Text="{Binding BatchBigFont, UpdateSourceTrigger=PropertyChanged}"
-                              DropDownClosed="OnComboBoxDropDownClosed"
-                              DropDownOpened="OnComboBoxDropDownOpened"/>
+                              Loaded="OnComboBoxLoaded"/>
                     <ComboBox Width="90" Height="28" Margin="4,0,0,0" IsEditable="True" IsTextSearchEnabled="True"
                               hc:InfoElement.Placeholder="TrueType..."
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableTrueTypeFonts}"
                               Text="{Binding BatchTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"
-                              DropDownClosed="OnComboBoxDropDownClosed"
-                              DropDownOpened="OnComboBoxDropDownOpened"/>
+                              Loaded="OnComboBoxLoaded"/>
                     <Button Content="批量替换" Height="28" FontSize="11"
                             Margin="6,0,0,0" Padding="8,0"
                             hc:BorderElement.CornerRadius="4"

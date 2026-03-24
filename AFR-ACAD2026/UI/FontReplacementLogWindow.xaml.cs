@@ -70,21 +70,14 @@ public partial class FontReplacementLogWindow : Window
         ViewModel.ApplyBatch();
     }
 
-    private void OnComboBoxDropDownClosed(object sender, EventArgs e)
-    {
-        Keyboard.ClearFocus();
-    }
-
-    private void OnComboBoxDropDownOpened(object sender, EventArgs e)
+    private void OnComboBoxLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.ComboBox combo)
         {
-            combo.Dispatcher.BeginInvoke(() =>
-            {
-                var textBox = combo.Template.FindName("PART_EditableTextBox", combo) as System.Windows.Controls.TextBox;
-                if (textBox != null)
-                    textBox.SelectionLength = 0;
-            }, System.Windows.Threading.DispatcherPriority.Input);
+            combo.ApplyTemplate();
+            var textBox = combo.Template.FindName("PART_EditableTextBox", combo) as System.Windows.Controls.TextBox;
+            if (textBox != null)
+                textBox.SelectionBrush = System.Windows.Media.Brushes.Transparent;
         }
     }
 

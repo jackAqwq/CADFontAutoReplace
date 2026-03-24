@@ -62,8 +62,7 @@
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableFonts}"
                               Text="{Binding SelectedMainFont, UpdateSourceTrigger=PropertyChanged}"
-                              DropDownClosed="OnComboBoxDropDownClosed"
-                              DropDownOpened="OnComboBoxDropDownOpened"/>
+                              Loaded="OnComboBoxLoaded"/>
                 </StackPanel>
             </Border>
 
@@ -84,8 +83,7 @@
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableFonts}"
                               Text="{Binding SelectedBigFont, UpdateSourceTrigger=PropertyChanged}"
-                              DropDownClosed="OnComboBoxDropDownClosed"
-                              DropDownOpened="OnComboBoxDropDownOpened"/>
+                              Loaded="OnComboBoxLoaded"/>
                 </StackPanel>
             </Border>
 
@@ -106,8 +104,7 @@
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableTrueTypeFonts}"
                               Text="{Binding SelectedTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"
-                              DropDownClosed="OnComboBoxDropDownClosed"
-                              DropDownOpened="OnComboBoxDropDownOpened"/>
+                              Loaded="OnComboBoxLoaded"/>
                 </StackPanel>
             </Border>
 
