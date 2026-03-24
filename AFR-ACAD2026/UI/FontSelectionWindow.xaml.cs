@@ -37,6 +37,24 @@ public partial class FontSelectionWindow : Window
         DialogResult = false;
     }
 
+    private void OnComboBoxDropDownClosed(object sender, EventArgs e)
+    {
+        Keyboard.ClearFocus();
+    }
+
+    private void OnComboBoxDropDownOpened(object sender, EventArgs e)
+    {
+        if (sender is System.Windows.Controls.ComboBox combo)
+        {
+            combo.Dispatcher.BeginInvoke(() =>
+            {
+                var textBox = combo.Template.FindName("PART_EditableTextBox", combo) as System.Windows.Controls.TextBox;
+                if (textBox != null)
+                    textBox.SelectionLength = 0;
+            }, System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
     /// <summary>
     /// 支持拖拽无边框窗口。
     /// </summary>

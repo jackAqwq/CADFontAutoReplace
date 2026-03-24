@@ -61,7 +61,9 @@
                               hc:InfoElement.Placeholder="搜索或选择 SHX 字体..."
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableFonts}"
-                              Text="{Binding SelectedMainFont, UpdateSourceTrigger=PropertyChanged}"/>
+                              Text="{Binding SelectedMainFont, UpdateSourceTrigger=PropertyChanged}"
+                              DropDownClosed="OnComboBoxDropDownClosed"
+                              DropDownOpened="OnComboBoxDropDownOpened"/>
                 </StackPanel>
             </Border>
 
@@ -81,7 +83,9 @@
                               hc:InfoElement.Placeholder="搜索或选择大字体..."
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableFonts}"
-                              Text="{Binding SelectedBigFont, UpdateSourceTrigger=PropertyChanged}"/>
+                              Text="{Binding SelectedBigFont, UpdateSourceTrigger=PropertyChanged}"
+                              DropDownClosed="OnComboBoxDropDownClosed"
+                              DropDownOpened="OnComboBoxDropDownOpened"/>
                 </StackPanel>
             </Border>
 
@@ -101,7 +105,9 @@
                               hc:InfoElement.Placeholder="搜索或选择 TrueType 字体..."
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableTrueTypeFonts}"
-                              Text="{Binding SelectedTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"/>
+                              Text="{Binding SelectedTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"
+                              DropDownClosed="OnComboBoxDropDownClosed"
+                              DropDownOpened="OnComboBoxDropDownOpened"/>
                 </StackPanel>
             </Border>
 
