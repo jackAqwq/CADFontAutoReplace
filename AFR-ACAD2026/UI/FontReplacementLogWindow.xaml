@@ -18,6 +18,7 @@
                 <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/Theme.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+            <SolidColorBrush x:Key="TrueTypeBrush" Color="#7C4DFF"/>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -67,7 +68,7 @@
                         </Border>
                         <!-- TrueType 计数 -->
                         <Border CornerRadius="3" Padding="6,2"
-                                Background="{DynamicResource InfoBrush}"
+                                Background="{StaticResource TrueTypeBrush}"
                                 Visibility="{Binding HasTrueType, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="{Binding TrueTypeLabel}" FontSize="10" Foreground="White"/>
                         </Border>
@@ -145,7 +146,7 @@
                                                             <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding FontCategory}" Value="TrueType">
-                                                                    <Setter Property="Background" Value="{DynamicResource InfoBrush}"/>
+                                                                    <Setter Property="Background" Value="{StaticResource TrueTypeBrush}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding FontCategory}" Value="SHX大字体">
                                                                     <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
@@ -216,7 +217,7 @@
                               ItemsSource="{Binding AvailableTrueTypeFonts}"
                               Text="{Binding BatchTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"
                               Loaded="OnComboBoxLoaded"/>
-                    <Button Content="批量替换" Height="28" FontSize="11"
+                    <Button Content="一键替换" Height="28" FontSize="11"
                             Margin="6,0,0,0" Padding="8,0"
                             hc:BorderElement.CornerRadius="4"
                             Click="OnBatchApply"/>
