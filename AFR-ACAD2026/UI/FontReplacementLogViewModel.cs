@@ -69,9 +69,9 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
     public int ShxCount { get; }
     public int TrueTypeCount { get; }
     public int BigFontCount { get; }
-    public string ShxLabel => $"SHX  {ShxCount}";
+    public string ShxLabel => $"SHX主字体  {ShxCount}";
     public string TrueTypeLabel => $"TrueType  {TrueTypeCount}";
-    public string BigFontLabel => $"大字体  {BigFontCount}";
+    public string BigFontLabel => $"SHX大字体  {BigFontCount}";
     public bool HasShx => ShxCount > 0;
     public bool HasTrueType => TrueTypeCount > 0;
     public bool HasBigFont => BigFontCount > 0;
@@ -98,7 +98,7 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
             {
                 if (r.IsMainFontMissing)
                 {
-                    string category = r.IsTrueType ? "TrueType" : "SHX";
+                    string category = r.IsTrueType ? "TrueType" : "SHX主字体";
                     string missingName = r.IsTrueType
                         ? (!string.IsNullOrEmpty(r.TypeFace) ? r.TypeFace : r.FileName)
                         : r.FileName;
@@ -116,16 +116,16 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
                 if (r.IsBigFontMissing)
                 {
                     bigRows.Add(new FontReplacementRow(
-                        r.StyleName, "大字体", r.BigFontFileName,
+                        r.StyleName, "SHX大字体", r.BigFontFileName,
                         false, true, shxFonts, globalBigFont));
                     bigCount++;
                 }
             }
 
-            // 按类型分组排序：SHX → TrueType → 大字体
+            // 按类型分组排序：SHX主字体 → SHX大字体 → TrueType
             foreach (var row in shxRows) Items.Add(row);
-            foreach (var row in ttRows) Items.Add(row);
             foreach (var row in bigRows) Items.Add(row);
+            foreach (var row in ttRows) Items.Add(row);
 
             ShxCount = shxCount;
             TrueTypeCount = ttCount;

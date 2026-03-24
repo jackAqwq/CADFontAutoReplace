@@ -26,11 +26,11 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/> <!-- 0: 标题 -->
                 <RowDefinition Height="20"/>   <!-- 1: 间距 -->
-                <RowDefinition Height="Auto"/> <!-- 2: SHX 字体 -->
+                <RowDefinition Height="Auto"/> <!-- 2: SHX主字体（西文） -->
                 <RowDefinition Height="12"/>   <!-- 3: 间距 -->
-                <RowDefinition Height="Auto"/> <!-- 4: TrueType 字体 -->
+                <RowDefinition Height="Auto"/> <!-- 4: SHX大字体（中文） -->
                 <RowDefinition Height="12"/>   <!-- 5: 间距 -->
-                <RowDefinition Height="Auto"/> <!-- 6: 大字体 -->
+                <RowDefinition Height="Auto"/> <!-- 6: TrueType字体（中文） -->
                 <RowDefinition Height="*"/>    <!-- 7: 弹性 -->
                 <RowDefinition Height="Auto"/> <!-- 8: 按钮 -->
             </Grid.RowDefinitions>
@@ -54,7 +54,7 @@
                         <TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="13"
                                    Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"
                                    Margin="0,0,6,0"/>
-                        <TextBlock Text="SHX 字体" FontSize="12" FontWeight="SemiBold"
+                        <TextBlock Text="SHX主字体（西文）" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{DynamicResource PrimaryTextBrush}"/>
                     </StackPanel>
                     <ComboBox IsEditable="True" IsTextSearchEnabled="True" Height="30"
@@ -65,28 +65,8 @@
                 </StackPanel>
             </Border>
 
-            <!-- TrueType 字体选择 -->
+            <!-- SHX大字体（中文）选择 -->
             <Border Grid.Row="4" CornerRadius="6"
-                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                    Padding="12,8">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                        <TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="13"
-                                   Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"
-                                   Margin="0,0,6,0"/>
-                        <TextBlock Text="TrueType 字体" FontSize="12" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource PrimaryTextBrush}"/>
-                    </StackPanel>
-                    <ComboBox IsEditable="True" IsTextSearchEnabled="True" Height="30"
-                              hc:InfoElement.Placeholder="搜索或选择 TrueType 字体..."
-                              Style="{StaticResource ComboBoxExtend}"
-                              ItemsSource="{Binding AvailableTrueTypeFonts}"
-                              Text="{Binding SelectedTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-            </Border>
-
-            <!-- 大字体选择 -->
-            <Border Grid.Row="6" CornerRadius="6"
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                     Padding="12,8">
                 <StackPanel>
@@ -94,7 +74,7 @@
                         <TextBlock Text="&#xE8D2;" FontFamily="Segoe MDL2 Assets" FontSize="13"
                                    Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"
                                    Margin="0,0,6,0"/>
-                        <TextBlock Text="大字体" FontSize="12" FontWeight="SemiBold"
+                        <TextBlock Text="SHX大字体（中文）" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{DynamicResource PrimaryTextBrush}"/>
                     </StackPanel>
                     <ComboBox IsEditable="True" IsTextSearchEnabled="True" Height="30"
@@ -102,6 +82,26 @@
                               Style="{StaticResource ComboBoxExtend}"
                               ItemsSource="{Binding AvailableFonts}"
                               Text="{Binding SelectedBigFont, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- TrueType字体（中文）选择 -->
+            <Border Grid.Row="6" CornerRadius="6"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    Padding="12,8">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                   Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"
+                                   Margin="0,0,6,0"/>
+                        <TextBlock Text="TrueType字体（中文）" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PrimaryTextBrush}"/>
+                    </StackPanel>
+                    <ComboBox IsEditable="True" IsTextSearchEnabled="True" Height="30"
+                              hc:InfoElement.Placeholder="搜索或选择 TrueType 字体..."
+                              Style="{StaticResource ComboBoxExtend}"
+                              ItemsSource="{Binding AvailableTrueTypeFonts}"
+                              Text="{Binding SelectedTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
             </Border>
 

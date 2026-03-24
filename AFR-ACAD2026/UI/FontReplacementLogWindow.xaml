@@ -53,23 +53,23 @@
                                FontSize="11" VerticalAlignment="Center"
                                Foreground="{DynamicResource SecondaryTextBrush}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- SHX 计数 -->
+                        <!-- SHX主字体计数 -->
                         <Border CornerRadius="3" Padding="6,2" Margin="0,0,6,0"
                                 Background="{DynamicResource PrimaryBrush}"
                                 Visibility="{Binding HasShx, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="{Binding ShxLabel}" FontSize="10" Foreground="White"/>
                         </Border>
-                        <!-- TrueType 计数 -->
+                        <!-- SHX大字体计数 -->
                         <Border CornerRadius="3" Padding="6,2" Margin="0,0,6,0"
-                                Background="{DynamicResource InfoBrush}"
-                                Visibility="{Binding HasTrueType, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding TrueTypeLabel}" FontSize="10" Foreground="White"/>
-                        </Border>
-                        <!-- 大字体计数 -->
-                        <Border CornerRadius="3" Padding="6,2"
                                 Background="{DynamicResource WarningBrush}"
                                 Visibility="{Binding HasBigFont, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="{Binding BigFontLabel}" FontSize="10" Foreground="White"/>
+                        </Border>
+                        <!-- TrueType 计数 -->
+                        <Border CornerRadius="3" Padding="6,2"
+                                Background="{DynamicResource InfoBrush}"
+                                Visibility="{Binding HasTrueType, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding TrueTypeLabel}" FontSize="10" Foreground="White"/>
                         </Border>
                     </StackPanel>
                 </DockPanel>
@@ -101,9 +101,9 @@
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110"/>
-                                    <ColumnDefinition Width="62"/>
-                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="105"/>
+                                    <ColumnDefinition Width="72"/>
+                                    <ColumnDefinition Width="105"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="样式名" FontSize="11" FontWeight="SemiBold"
@@ -127,9 +127,9 @@
                                                 BorderThickness="0,0,0,1">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="110"/>
-                                                    <ColumnDefinition Width="62"/>
-                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="105"/>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="105"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="{Binding StyleName}"
@@ -147,7 +147,7 @@
                                                                 <DataTrigger Binding="{Binding FontCategory}" Value="TrueType">
                                                                     <Setter Property="Background" Value="{DynamicResource InfoBrush}"/>
                                                                 </DataTrigger>
-                                                                <DataTrigger Binding="{Binding FontCategory}" Value="大字体">
+                                                                <DataTrigger Binding="{Binding FontCategory}" Value="SHX大字体">
                                                                     <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
