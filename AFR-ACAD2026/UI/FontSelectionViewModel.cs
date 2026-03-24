@@ -106,7 +106,7 @@ internal sealed class FontSelectionViewModel : INotifyPropertyChanged
 
     /// <summary>
     /// 扫描系统已安装的 TrueType 字体，优先使用中文本地化名称。
-    /// 过滤掉名称包含无效字符（乱码）的字体。
+    /// 通过 GlyphTypeface 交叉验证过滤元数据损坏的乱码字体名称。
     /// </summary>
     internal static SortedSet<string> ScanSystemTrueTypeFonts()
     {
@@ -135,8 +135,12 @@ internal sealed class FontSelectionViewModel : INotifyPropertyChanged
                 // 跳过没有中文名的字体
                 if (displayName == null) continue;
 
-                // 过滤包含控制字符或替换字符的乱码名称
+                // 基础字符过滤
                 if (HasInvalidChars(displayName)) continue;
+
+                // 通过 GlyphTypeface 交叉验证：
+                // 读取字体文件内嵌的真实名称，如果显示名称不在其中，则为乱码
+                if (!ValidateFontName(family, displayName)) continue;
 
                 fonts.Add(displayName);
             }
@@ -146,21 +150,72 @@ internal sealed class FontSelectionViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 检查字体名称是否包含无效字符或编码损坏特征。
-    /// 过滤控制字符、替换字符、PUA 字符以及乱码常见模式（如 "::"）。
+    /// 通过字体文件名交叉验证显示名称是否为乱码。
+    /// 当文件名和显示名都包含 CJK 字符时，两者应至少共享一个汉字。
+    /// 乱码名称（编码损坏）与文件名不会有任何共同汉字。
+    /// 例：文件 "汉鼎简细等线.TTF" → 显示 "鞘湮楷札罟::潮瑟"，零交集 → 过滤。
+    /// </summary>
+    private static bool ValidateFontName(FontFamily family, string displayName)
+    {
+        try
+        {
+            var typeface = new Typeface(family, System.Windows.FontStyles.Normal, System.Windows.FontWeights.Normal, System.Windows.FontStretches.Normal);
+            if (!typeface.TryGetGlyphTypeface(out var glyph))
+                return true;
+
+            string? filePath = glyph.FontUri?.LocalPath;
+            if (string.IsNullOrEmpty(filePath)) return true;
+
+            string fileName = Path.GetFileNameWithoutExtension(filePath);
+            if (string.IsNullOrEmpty(fileName)) return true;
+
+            // 仅当文件名和显示名都含 CJK 字符时才做交叉验证
+            if (!ContainsCjk(fileName) || !ContainsCjk(displayName))
+                return true;
+
+            // 两者应至少共享一个 CJK 字符，否则显示名为乱码
+            foreach (char c in displayName)
+            {
+                if (c >= '\u4E00' && c <= '\u9FFF' && fileName.Contains(c))
+                    return true;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static bool ContainsCjk(string s)
+    {
+        foreach (char c in s)
+        {
+            if (c >= '\u4E00' && c <= '\u9FFF') return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 检查字体名称是否包含不合法字符。
+    /// 白名单策略：只允许常规字母（排除 ModifierLetter）、数字和常见标点。
+    /// ModifierLetter 包含看似冒号的修饰符（如 U+A789 ꞉），会导致乱码名称通过 IsLetter 检查。
     /// </summary>
     private static bool HasInvalidChars(string name)
     {
-        if (name.Contains("::"))
-            return true;
-
         foreach (char c in name)
         {
-            if (char.IsControl(c) || c == '\uFFFD' || c == '\uFFFE' || c == '\uFFFF')
-                return true;
-            // Private Use Area 字符通常表示编码异常
-            if (c >= '\uE000' && c <= '\uF8FF')
-                return true;
+            if (char.IsDigit(c)) continue;
+            if (char.IsLetter(c))
+            {
+                // ModifierLetter (Lm) 包含冒号变体等修饰符，不应出现在字体名中
+                if (char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.ModifierLetter)
+                    return true;
+                continue;
+            }
+            if (c is ' ' or '-' or '_' or '(' or ')' or '（' or '）' or '.' or '·') continue;
+            return true;
         }
         return false;
     }
