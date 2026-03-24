@@ -79,17 +79,25 @@ public class AfrCommands
 
             // 优先使用已存储的检测结果，否则重新检测
             var results = DocumentContextManager.Instance.GetDetectionResults(doc);
-            if (results == null || results.Count == 0)
+            Dictionary<string, (string FileName, string BigFontFileName, string TypeFace)>? currentFonts = null;
+
+            using (doc.LockDocument())
             {
-                using (doc.LockDocument())
+                if (results == null || results.Count == 0)
                 {
                     results = FontDetector.DetectMissingFonts(doc.Database);
+                }
+
+                // 读取图纸中各样式的当前实际字体（反映手动替换/ST命令修改后的状态）
+                if (results != null && results.Count > 0)
+                {
+                    currentFonts = FontDetector.ReadCurrentFontAssignments(doc.Database);
                 }
             }
 
             var config = ConfigService.Instance;
             var vm = new FontReplacementLogViewModel(
-                results, config.MainFont, config.BigFont, config.TrueTypeFont);
+                results, config.MainFont, config.BigFont, config.TrueTypeFont, currentFonts);
 
             var window = new FontReplacementLogWindow(vm);
             Autodesk.AutoCAD.ApplicationServices.Application.ShowModalWindow(window);

@@ -65,6 +65,11 @@ public partial class FontReplacementLogWindow : Window
         }
     }
 
+    private void OnBatchApply(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ApplyBatch();
+    }
+
     private void OnClose(object sender, RoutedEventArgs e)
     {
         Close();

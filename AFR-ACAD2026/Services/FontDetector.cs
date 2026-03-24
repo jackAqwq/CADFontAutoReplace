@@ -101,6 +101,36 @@ internal static class FontDetector
     }
 
     /// <summary>
+    /// 读取数据库中所有文字样式的当前字体配置。
+    /// 用于 AFRLOG 界面显示实际字体（反映手动替换或 ST 命令修改后的状态）。
+    /// </summary>
+    public static Dictionary<string, (string FileName, string BigFontFileName, string TypeFace)>
+        ReadCurrentFontAssignments(Database db)
+    {
+        var result = new Dictionary<string, (string, string, string)>(StringComparer.OrdinalIgnoreCase);
+
+        using var tr = db.TransactionManager.StartTransaction();
+        var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
+
+        foreach (ObjectId id in styleTable)
+        {
+            try
+            {
+                var style = (TextStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
+                result[style.Name] = (
+                    style.FileName ?? string.Empty,
+                    style.BigFontFileName ?? string.Empty,
+                    style.Font.TypeFace ?? string.Empty
+                );
+            }
+            catch { }
+        }
+
+        tr.Commit();
+        return result;
+    }
+
+    /// <summary>
     /// 检查 SHX 字体文件是否可被 AutoCAD 找到。
     /// 通过名称归一化处理 acad.fmp 兼容性。
     /// </summary>

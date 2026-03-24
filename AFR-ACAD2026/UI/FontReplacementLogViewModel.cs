@@ -64,6 +64,10 @@ internal sealed class FontReplacementRow : INotifyPropertyChanged
 /// </summary>
 internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
 {
+    private string _batchShxFont = string.Empty;
+    private string _batchBigFont = string.Empty;
+    private string _batchTrueTypeFont = string.Empty;
+
     public ObservableCollection<FontReplacementRow> Items { get; } = [];
     public string SummaryText { get; }
     public int ShxCount { get; }
@@ -78,14 +82,58 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
     public bool HasItems => Items.Count > 0;
     public bool HasNoItems => !HasItems;
 
+    /// <summary>批量操作可选的 SHX 字体列表。</summary>
+    public ObservableCollection<string> AvailableShxFonts { get; }
+
+    /// <summary>批量操作可选的 TrueType 字体列表。</summary>
+    public ObservableCollection<string> AvailableTrueTypeFonts { get; }
+
+    public string BatchShxFont
+    {
+        get => _batchShxFont;
+        set { if (_batchShxFont != value) { _batchShxFont = value ?? string.Empty; OnPropertyChanged(); } }
+    }
+
+    public string BatchBigFont
+    {
+        get => _batchBigFont;
+        set { if (_batchBigFont != value) { _batchBigFont = value ?? string.Empty; OnPropertyChanged(); } }
+    }
+
+    public string BatchTrueTypeFont
+    {
+        get => _batchTrueTypeFont;
+        set { if (_batchTrueTypeFont != value) { _batchTrueTypeFont = value ?? string.Empty; OnPropertyChanged(); } }
+    }
+
+    /// <summary>
+    /// 将批量选择的字体填充到对应类型的所有行。
+    /// 仅填充 ComboBox 选项，不直接写入数据库。
+    /// </summary>
+    public void ApplyBatch()
+    {
+        foreach (var row in Items)
+        {
+            if (row.IsTrueType && !string.IsNullOrEmpty(BatchTrueTypeFont))
+                row.SelectedReplacement = BatchTrueTypeFont;
+            else if (row.IsBigFont && !string.IsNullOrEmpty(BatchBigFont))
+                row.SelectedReplacement = BatchBigFont;
+            else if (!row.IsTrueType && !row.IsBigFont && !string.IsNullOrEmpty(BatchShxFont))
+                row.SelectedReplacement = BatchShxFont;
+        }
+    }
+
     public FontReplacementLogViewModel(
         IReadOnlyList<FontCheckResult>? detectionResults,
         string globalMainFont,
         string globalBigFont,
-        string globalTrueTypeFont)
+        string globalTrueTypeFont,
+        Dictionary<string, (string FileName, string BigFontFileName, string TypeFace)>? currentFonts = null)
     {
         var shxFonts = new ObservableCollection<string>(FontSelectionViewModel.ScanAvailableFonts());
         var ttFonts = new ObservableCollection<string>(FontSelectionViewModel.ScanSystemTrueTypeFonts());
+        AvailableShxFonts = shxFonts;
+        AvailableTrueTypeFonts = ttFonts;
 
         if (detectionResults != null && detectionResults.Count > 0)
         {
@@ -96,18 +144,34 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
 
             foreach (var r in detectionResults)
             {
+                // 尝试获取该样式在图纸中的当前实际字体
+                var current = (FileName: string.Empty, BigFontFileName: string.Empty, TypeFace: string.Empty);
+                currentFonts?.TryGetValue(r.StyleName, out current);
+
                 if (r.IsMainFontMissing)
                 {
                     string category = r.IsTrueType ? "TrueType" : "SHX主字体";
                     string missingName = r.IsTrueType
                         ? (!string.IsNullOrEmpty(r.TypeFace) ? r.TypeFace : r.FileName)
                         : r.FileName;
-                    string autoReplacement = r.IsTrueType ? globalTrueTypeFont : globalMainFont;
                     var fonts = r.IsTrueType ? ttFonts : shxFonts;
+
+                    // 优先使用当前实际字体，全局配置作为兜底
+                    string replacement;
+                    if (r.IsTrueType)
+                    {
+                        string currentTT = current.TypeFace;
+                        replacement = !string.IsNullOrEmpty(currentTT) ? currentTT : globalTrueTypeFont;
+                    }
+                    else
+                    {
+                        string currentShx = current.FileName;
+                        replacement = !string.IsNullOrEmpty(currentShx) ? currentShx : globalMainFont;
+                    }
 
                     var row = new FontReplacementRow(
                         r.StyleName, category, missingName,
-                        r.IsTrueType, false, fonts, autoReplacement);
+                        r.IsTrueType, false, fonts, replacement);
 
                     if (r.IsTrueType) { ttRows.Add(row); ttCount++; }
                     else { shxRows.Add(row); shxCount++; }
@@ -115,9 +179,12 @@ internal sealed class FontReplacementLogViewModel : INotifyPropertyChanged
 
                 if (r.IsBigFontMissing)
                 {
+                    string currentBig = current.BigFontFileName;
+                    string replacement = !string.IsNullOrEmpty(currentBig) ? currentBig : globalBigFont;
+
                     bigRows.Add(new FontReplacementRow(
                         r.StyleName, "SHX大字体", r.BigFontFileName,
-                        false, true, shxFonts, globalBigFont));
+                        false, true, shxFonts, replacement));
                     bigCount++;
                 }
             }
