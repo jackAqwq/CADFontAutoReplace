@@ -20,7 +20,10 @@ public partial class MTextEditorWindow : Window
     internal MTextEditorWindow(string rawContents)
     {
         InitializeComponent();
-        CenterOnAcadWindow();
+
+        // 在 Loaded 事件中居中，确保在 ShowModalWindow 定位之后执行，
+        // 且 PresentationSource 可用于 DPI 换算
+        Loaded += (_, _) => CenterOnAcadWindow();
 
         string displayText = MTextEditorViewModel.ToDisplayFormat(rawContents);
         RawViewer.Document = MTextSyntaxHighlighter.CreateHighlightedRawDocument(displayText);
@@ -30,10 +33,19 @@ public partial class MTextEditorWindow : Window
     {
         if (!GetWindowRect(AcadApp.MainWindow.Handle, out var rect)) return;
 
-        double ownerW = rect.Right - rect.Left;
-        double ownerH = rect.Bottom - rect.Top;
-        Left = rect.Left + (ownerW - Width) / 2;
-        Top = rect.Top + (ownerH - Height) / 2;
+        // GetWindowRect 返回屏幕像素，WPF Left/Top 使用逻辑单位（96 DPI 基准）
+        // 需要按 DPI 缩放因子换算
+        var source = PresentationSource.FromVisual(this);
+        double scaleX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+        double scaleY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+
+        double ownerLeft = rect.Left / scaleX;
+        double ownerTop = rect.Top / scaleY;
+        double ownerW = (rect.Right - rect.Left) / scaleX;
+        double ownerH = (rect.Bottom - rect.Top) / scaleY;
+
+        Left = ownerLeft + (ownerW - ActualWidth) / 2;
+        Top = ownerTop + (ownerH - ActualHeight) / 2;
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
