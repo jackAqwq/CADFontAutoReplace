@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
+using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 namespace AFR_ACAD2026.MTextEditor;
 
@@ -12,6 +14,9 @@ public partial class MTextEditorWindow : Window
     internal MTextEditorWindow(string rawContents)
     {
         InitializeComponent();
+
+        // 将 AutoCAD 主窗口设为 Owner，确保 CenterOwner 生效
+        new WindowInteropHelper(this).Owner = AcadApp.MainWindow.Handle;
 
         string displayText = MTextEditorViewModel.ToDisplayFormat(rawContents);
         RawViewer.Document = MTextSyntaxHighlighter.CreateHighlightedRawDocument(displayText);
