@@ -1,6 +1,6 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Interop;
 using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 namespace AFR_ACAD2026.MTextEditor;
@@ -11,15 +11,29 @@ namespace AFR_ACAD2026.MTextEditor;
 /// </summary>
 public partial class MTextEditorWindow : Window
 {
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(nint hWnd, out RECT lpRect);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
     internal MTextEditorWindow(string rawContents)
     {
         InitializeComponent();
-
-        // 将 AutoCAD 主窗口设为 Owner，确保 CenterOwner 生效
-        new WindowInteropHelper(this).Owner = AcadApp.MainWindow.Handle;
+        CenterOnAcadWindow();
 
         string displayText = MTextEditorViewModel.ToDisplayFormat(rawContents);
         RawViewer.Document = MTextSyntaxHighlighter.CreateHighlightedRawDocument(displayText);
+    }
+
+    private void CenterOnAcadWindow()
+    {
+        if (!GetWindowRect(AcadApp.MainWindow.Handle, out var rect)) return;
+
+        double ownerW = rect.Right - rect.Left;
+        double ownerH = rect.Bottom - rect.Top;
+        Left = rect.Left + (ownerW - Width) / 2;
+        Top = rect.Top + (ownerH - Height) / 2;
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

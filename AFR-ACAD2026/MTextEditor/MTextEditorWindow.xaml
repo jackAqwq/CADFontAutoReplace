@@ -4,7 +4,7 @@
         xmlns:hc="https://handyorg.github.io/handycontrol"
         Title="AFR — MText 查看器"
         Width="500" Height="560"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStyle="None"
