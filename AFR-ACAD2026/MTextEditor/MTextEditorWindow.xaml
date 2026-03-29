@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:hc="https://handyorg.github.io/handycontrol"
-        Title="AFR — MText 编辑器"
-        Width="820" Height="520"
+        Title="AFR — MText 查看器"
+        Width="500" Height="480"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -26,108 +26,40 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>  <!-- 0: 标题 -->
                 <RowDefinition Height="10"/>    <!-- 1: 间距 -->
-                <RowDefinition Height="Auto"/>  <!-- 2: 面板标题 -->
-                <RowDefinition Height="*"/>     <!-- 3: 编辑区域 -->
-                <RowDefinition Height="10"/>    <!-- 4: 间距 -->
-                <RowDefinition Height="Auto"/>  <!-- 5: 查找替换 -->
-                <RowDefinition Height="10"/>    <!-- 6: 间距 -->
-                <RowDefinition Height="Auto"/>  <!-- 7: 状态和按钮 -->
+                <RowDefinition Height="*"/>     <!-- 2: 查看区域 -->
+                <RowDefinition Height="10"/>    <!-- 3: 间距 -->
+                <RowDefinition Height="Auto"/>  <!-- 4: 按钮 -->
             </Grid.RowDefinitions>
 
             <!-- 标题 -->
             <StackPanel Grid.Row="0">
-                <TextBlock Text="MText 编辑器"
+                <TextBlock Text="MText 查看器"
                            FontSize="16" FontWeight="Bold"
                            Foreground="{DynamicResource PrimaryTextBrush}"/>
-                <TextBlock Text="编辑多行文字的格式代码 — 左侧原始代码，右侧预览效果"
+                <TextBlock Text="查看多行文字的格式代码（语法高亮）"
                            FontSize="11" Margin="0,3,0,0"
                            Foreground="{DynamicResource SecondaryTextBrush}"/>
             </StackPanel>
 
-            <!-- 面板标题 -->
-            <Grid Grid.Row="2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="▎原始代码 (Contents)" FontSize="11" FontWeight="SemiBold"
-                           Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,4"/>
-                <TextBlock Grid.Column="2" Text="▎预览效果" FontSize="11" FontWeight="SemiBold"
-                           Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,4"/>
-            </Grid>
-
-            <!-- 编辑区域 -->
-            <Grid Grid.Row="3">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- 左侧：原始代码 (RichTextBox，语法高亮) -->
-                <Border Grid.Column="0" CornerRadius="6" ClipToBounds="True"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                    <RichTextBox x:Name="RawEditor"
-                                 AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Disabled"
-                                 FontFamily="Consolas" FontSize="13"
-                                 Padding="8,6"
-                                 BorderThickness="0"
-                                 Background="{DynamicResource SecondaryRegionBrush}"
-                                 Foreground="{DynamicResource PrimaryTextBrush}"
-                                 TextChanged="RawEditor_TextChanged"/>
-                </Border>
-
-                <!-- 右侧：预览效果 (RichTextBox，只读) -->
-                <Border Grid.Column="2" CornerRadius="6" ClipToBounds="True"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                    <RichTextBox x:Name="PreviewEditor"
-                                 IsReadOnly="True"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Disabled"
-                                 Padding="8,6"
-                                 BorderThickness="0"
-                                 Background="{DynamicResource SecondaryRegionBrush}"
-                                 Foreground="{DynamicResource PrimaryTextBrush}"/>
-                </Border>
-            </Grid>
-
-            <!-- 查找替换 -->
-            <Border Grid.Row="5" CornerRadius="6" Padding="10,6"
-                    Background="{DynamicResource SecondaryRegionBrush}"
+            <!-- 查看区域 -->
+            <Border Grid.Row="2" CornerRadius="6" ClipToBounds="True"
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="查找:" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"
-                               Foreground="{DynamicResource PrimaryTextBrush}"/>
-                    <TextBox Width="200" Height="26" FontSize="11"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-                    <TextBlock Text="替换:" FontSize="11" VerticalAlignment="Center" Margin="12,0,6,0"
-                               Foreground="{DynamicResource PrimaryTextBrush}"/>
-                    <TextBox Width="200" Height="26" FontSize="11"
-                             Text="{Binding ReplaceText, UpdateSourceTrigger=PropertyChanged}"/>
-                    <Button Content="批量替换" Height="26" MinWidth="70" FontSize="11" Margin="10,0,0,0"
-                            hc:BorderElement.CornerRadius="4"
-                            Style="{StaticResource ButtonWarning}"
-                            Click="OnBatchReplace"/>
-                </StackPanel>
+                <RichTextBox x:Name="RawViewer"
+                             IsReadOnly="True"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Disabled"
+                             FontFamily="Consolas" FontSize="13"
+                             Padding="8,6"
+                             BorderThickness="0"
+                             Background="{DynamicResource SecondaryRegionBrush}"
+                             Foreground="{DynamicResource PrimaryTextBrush}"/>
             </Border>
 
-            <!-- 状态和按钮 -->
-            <DockPanel Grid.Row="7">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="取消" Height="32" MinWidth="80" FontSize="12" Margin="0,0,8,0"
-                            hc:BorderElement.CornerRadius="6"
-                            IsCancel="True" Click="OnCancel"/>
-                    <Button Content="确认" Height="32" MinWidth="80" FontSize="12"
-                            Style="{StaticResource ButtonPrimary}"
-                            hc:BorderElement.CornerRadius="6"
-                            IsDefault="True" Click="OnConfirm"/>
-                </StackPanel>
-                <TextBlock Text="{Binding StatusMessage}" FontSize="11"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+            <!-- 按钮 -->
+            <DockPanel Grid.Row="4">
+                <Button DockPanel.Dock="Right" Content="关闭" Height="32" MinWidth="80" FontSize="12"
+                        hc:BorderElement.CornerRadius="6"
+                        IsCancel="True" Click="OnClose"/>
             </DockPanel>
         </Grid>
     </Border>

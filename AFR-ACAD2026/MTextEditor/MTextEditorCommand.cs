@@ -7,15 +7,15 @@ using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace AFR_ACAD2026.MTextEditor;
 
 /// <summary>
-/// MText 编辑器的 AutoCAD 命令定义。
+/// MText 查看器的 AutoCAD 命令定义。
 /// </summary>
 public class MTextEditorCommand
 {
     /// <summary>
-    /// AFREDIT 命令: 选中多行文字 (MText) 并打开格式代码编辑器。
+    /// AFRVIEW 命令: 选中多行文字 (MText) 并打开格式代码查看器。
     /// </summary>
-    [CommandMethod("AFREDIT")]
-    public void EditMText()
+    [CommandMethod("AFRVIEW")]
+    public void ViewMText()
     {
         var log = LogService.Instance;
         try
@@ -31,43 +31,24 @@ public class MTextEditorCommand
             var result = ed.GetEntity(opts);
             if (result.Status != PromptStatus.OK) return;
 
-            ObjectId mtextId = result.ObjectId;
-            string originalContents;
+            string contents;
 
             using (doc.LockDocument())
             using (var tr = doc.Database.TransactionManager.StartTransaction())
             {
-                var mtext = (MText)tr.GetObject(mtextId, OpenMode.ForRead);
-                originalContents = mtext.Contents;
+                var mtext = (MText)tr.GetObject(result.ObjectId, OpenMode.ForRead);
+                contents = mtext.Contents;
                 tr.Commit();
             }
 
-            log.Info($"AFREDIT: 已读取 MText 内容 (长度={originalContents.Length})");
+            log.Info($"AFRVIEW: 已读取 MText 内容 (长度={contents.Length})");
 
-            var vm = new MTextEditorViewModel(originalContents);
-            var window = new MTextEditorWindow(vm);
+            var window = new MTextEditorWindow(contents);
             Autodesk.AutoCAD.ApplicationServices.Application.ShowModalWindow(window);
-
-            if (window.DialogResult == true && vm.RawContents != originalContents)
-            {
-                using (doc.LockDocument())
-                using (var tr = doc.Database.TransactionManager.StartTransaction())
-                {
-                    var mtext = (MText)tr.GetObject(mtextId, OpenMode.ForWrite);
-                    mtext.Contents = vm.RawContents;
-                    tr.Commit();
-                }
-                ed.Regen();
-                log.Info("AFREDIT: MText 内容已更新。");
-            }
-            else
-            {
-                log.Info("AFREDIT: 用户取消或内容未修改。");
-            }
         }
         catch (System.Exception ex)
         {
-            log.Error("AFREDIT 命令执行失败", ex);
+            log.Error("AFRVIEW 命令执行失败", ex);
         }
         finally
         {
