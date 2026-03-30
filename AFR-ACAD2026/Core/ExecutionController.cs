@@ -44,9 +44,9 @@ internal sealed class ExecutionController
             using (doc.LockDocument())
             {
                 // 第零阶段: 缺失字体文件修复 — 在字体检测之前
-                // 扫描文字样式表和 MText 内联字体码，为缺失的 SHX 字体创建硬链接
-                // 确保 MText 内联引用的字体可被 AutoCAD 找到，避免乱码
-                FontMappingService.EnsureMissingFonts(doc.Database);
+                // 扫描 MText 内联字体码，为缺失的 SHX 字体创建硬链接
+                var inlineFixResults = FontMappingService.EnsureMissingFonts(doc.Database);
+                contextMgr.StoreInlineFontFixResults(doc, inlineFixResults);
 
                 // 第一阶段: 检测缺失字体
                 var missingFonts = FontDetector.DetectMissingFonts(doc.Database);

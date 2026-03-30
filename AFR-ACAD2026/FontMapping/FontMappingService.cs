@@ -6,6 +6,15 @@ using AFR_ACAD2026.Services;
 namespace AFR_ACAD2026.FontMapping;
 
 /// <summary>
+/// 单条内联字体修复记录。
+/// </summary>
+internal sealed record InlineFontFixRecord(
+    string MissingFont,
+    string ReplacementFont,
+    string FixMethod,      // "硬链接" 或 "内容替换"
+    string FontCategory);  // "SHX主字体" / "SHX大字体" / "TrueType"
+
+/// <summary>
 /// 字体映射服务 — 专门处理 FontReplacer 无法覆盖的字体缺失场景。
 ///
 /// FontReplacer 通过修改 TextStyleTableRecord 替换样式表中的缺失字体，
@@ -34,26 +43,28 @@ internal static partial class FontMappingService
     private static partial Regex InlineFontRegex();
 
     /// <summary>
-    /// 扫描文档中所有字体引用，为缺失的 SHX 字体创建硬链接。
+    /// 扫描文档中所有 MText 内联字体引用，为缺失的字体创建硬链接或替换内容。
     /// 必须在 FontDetector / FontReplacer 之前调用。
+    /// 返回本次修复记录列表，供 AFRLOG 界面显示。
     /// </summary>
-    internal static void EnsureMissingFonts(Database db)
+    internal static List<InlineFontFixRecord> EnsureMissingFonts(Database db)
     {
         var log = LogService.Instance;
         var config = ConfigService.Instance;
+        var records = new List<InlineFontFixRecord>();
 
         string? repMain = NullIfEmpty(config.MainFont);
         string? repBig = NullIfEmpty(config.BigFont);
 
         if (repMain == null && repBig == null)
-            return;
+            return records;
 
         // 查找替换字体的实际文件路径
         string? repMainPath = repMain != null ? FindFontFile(EnsureShx(repMain), db) : null;
         string? repBigPath = repBig != null ? FindFontFile(EnsureShx(repBig), db) : null;
 
         if (repMainPath == null && repBigPath == null)
-            return;
+            return records;
 
         // 收集所有 SHX 字体引用
         var mainFonts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -61,7 +72,7 @@ internal static partial class FontMappingService
         CollectFontReferences(db, mainFonts, bigFonts);
 
         if (mainFonts.Count == 0 && bigFonts.Count == 0)
-            return;
+            return records;
 
         // 记录本次创建的硬链接（文件名 → 完整路径），供阶段2查找阶段1新建的字体
         var created = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -74,7 +85,8 @@ internal static partial class FontMappingService
             {
                 string shx = EnsureShx(font);
                 if (string.IsNullOrEmpty(FindFontFile(shx, db)))
-                    TryCreateLink(shx, repMainPath, created, log);
+                    if (TryCreateLink(shx, repMainPath, created, log))
+                        records.Add(new(shx, Path.GetFileName(repMainPath), "硬链接", "SHX主字体"));
             }
         }
 
@@ -86,7 +98,8 @@ internal static partial class FontMappingService
 
                 string shx = EnsureShx(font);
                 if (string.IsNullOrEmpty(FindFontFile(shx, db)))
-                    TryCreateLink(shx, repBigPath, created, log);
+                    if (TryCreateLink(shx, repBigPath, created, log))
+                        records.Add(new(shx, Path.GetFileName(repBigPath), "硬链接", "SHX大字体"));
             }
         }
 
@@ -98,32 +111,29 @@ internal static partial class FontMappingService
 
             string shx = EnsureShx(font);
             if (!string.IsNullOrEmpty(FindFontFile(shx, db)))
-                continue; // @xxx 已存在
+                continue;
 
-            // 优先使用基础字体（去掉 @ 后的同名字体）
             string baseShx = EnsureShx(font[1..]);
             string? basePath = FindFontFile(baseShx, db);
 
-            // 基础字体可能在阶段1中刚被创建
             if (string.IsNullOrEmpty(basePath) && created.TryGetValue(baseShx, out string? createdPath))
                 basePath = createdPath;
 
-            if (!string.IsNullOrEmpty(basePath))
-            {
-                TryCreateLink(shx, basePath, created, log);
-            }
-            else if (repBigPath != null)
-            {
-                TryCreateLink(shx, repBigPath, created, log);
-            }
+            string? targetPath = !string.IsNullOrEmpty(basePath) ? basePath : repBigPath;
+            if (targetPath != null && TryCreateLink(shx, targetPath, created, log))
+                records.Add(new(shx, Path.GetFileName(targetPath), "硬链接", "SHX大字体"));
         }
 
         // ── 阶段 3：MText 内联 TrueType 字体替换 ──
 
         if (repMain != null)
         {
-            ReplaceMissingInlineTtfFonts(db, repMain, log);
+            int ttfCount = ReplaceMissingInlineTtfFonts(db, repMain, log);
+            if (ttfCount > 0)
+                records.Add(new($"MText 内联 ({ttfCount} 个)", repMain, "内容替换", "TrueType"));
         }
+
+        return records;
     }
 
     #region 阶段 3：MText 内联 TrueType 替换
@@ -134,7 +144,7 @@ internal static partial class FontMappingService
     ///
     /// 示例：\Ftxt_____.ttf,gbcbig|c134; → \Fgbenor,gbcbig|c134;
     /// </summary>
-    private static void ReplaceMissingInlineTtfFonts(Database db, string shxMainFont, LogService log)
+    private static int ReplaceMissingInlineTtfFonts(Database db, string shxMainFont, LogService log)
     {
         try
         {
@@ -183,10 +193,13 @@ internal static partial class FontMappingService
 
             if (replaceCount > 0)
                 log.Info($"FontMapping: 已替换 {replaceCount} 个 MText 中缺失的内联 TrueType 字体 → {shxMainFont}");
+
+            return replaceCount;
         }
         catch (Exception ex)
         {
             log.Error("FontMapping: MText 内联 TrueType 字体替换失败", ex);
+            return 0;
         }
     }
 
@@ -258,15 +271,16 @@ internal static partial class FontMappingService
 
     /// <summary>
     /// 创建硬链接（回退到拷贝），并记录到 created 字典。
+    /// 成功返回 true。
     /// </summary>
-    private static void TryCreateLink(string fileName, string targetPath,
+    private static bool TryCreateLink(string fileName, string targetPath,
         Dictionary<string, string> created, LogService log)
     {
         string dir = Path.GetDirectoryName(targetPath)!;
         string linkPath = Path.Combine(dir, fileName);
 
         if (File.Exists(linkPath) || created.ContainsKey(fileName))
-            return;
+            return false;
 
         try
         {
@@ -278,14 +292,17 @@ internal static partial class FontMappingService
                 log.Info($"FontMapping: 已拷贝 {Path.GetFileName(targetPath)} → {fileName}");
             }
             created[fileName] = linkPath;
+            return true;
         }
         catch (UnauthorizedAccessException)
         {
             log.Warning($"FontMapping: 无权限创建 {fileName}（需要管理员权限写入 Fonts 目录）");
+            return false;
         }
         catch (Exception ex)
         {
             log.Error($"FontMapping: 创建 {fileName} 失败", ex);
+            return false;
         }
     }
 
