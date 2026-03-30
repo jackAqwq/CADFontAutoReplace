@@ -68,9 +68,9 @@ public class PluginEntry : IExtensionApplication
         var log = LogService.Instance;
         try
         {
-            // 第零阶段 A: 定位 acad.fmp — 必须在任何文档打开之前
-            // FMP 中保留了上次会话发现的字体映射，AutoCAD 解析 DWG 时会读取
-            FontMappingService.InitializeFmpPath();
+            // 第零阶段 A: 安装 ldfile Hook — 必须在任何文档打开之前
+            // Hook 拦截字体文件加载，将缺失字体重定向到用户配置的替换字体
+            LdFileHook.Install();
 
             // 第零阶段 B: 提前触发系统字体索引的后台构建
             // 与后续初始化和 CAD 启动并行执行，Idle 时通常已就绪
@@ -103,6 +103,7 @@ public class PluginEntry : IExtensionApplication
 
     public void Terminate()
     {
+        LdFileHook.Uninstall();
         UnregisterEvents();
     }
 
@@ -127,6 +128,9 @@ public class PluginEntry : IExtensionApplication
                 _idleHandlerRegistered = false;
             }
         }
+
+        // 卸载 Hook
+        LdFileHook.Uninstall();
 
         // 清空文档跟踪
         DocumentContextManager.Instance.Clear();

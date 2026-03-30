@@ -43,9 +43,9 @@ internal sealed class ExecutionController
             // 获取文档写入锁
             using (doc.LockDocument())
             {
-                // 第零阶段: 内联字体映射 — 在字体检测之前
-                // 扫描 MText 内联字体码，将缺失字体映射写入 acad.fmp
-                var inlineFixResults = FontMappingService.EnsureMissingFonts(doc.Database);
+                // 第零阶段: 收集 Hook 重定向记录
+                // ldfile Hook 已在 DWG 解析阶段完成字体重定向，此处仅收集结果供 AFRLOG 显示
+                var inlineFixResults = FontMappingService.CollectRedirectRecords();
                 contextMgr.StoreInlineFontFixResults(doc, inlineFixResults);
 
                 // 第一阶段: 检测缺失字体

@@ -1,5 +1,6 @@
 using Autodesk.AutoCAD.Runtime;
 using AFR_ACAD2026.Core;
+using AFR_ACAD2026.FontMapping;
 using AFR_ACAD2026.Services;
 using AFR_ACAD2026.UI;
 using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
@@ -40,6 +41,9 @@ public class AfrCommands
             config.IsInitialized = true;
 
             log.Info($"配置已保存 — 主字体: '{window.SelectedMainFont}', TrueType字体: '{window.SelectedTrueTypeFont}', 大字体: '{window.SelectedBigFont}'");
+
+            // 更新 Hook 的替换字体配置
+            LdFileHook.UpdateConfig();
 
             // 对当前文档执行字体替换
             var doc = AcadApp.DocumentManager.MdiActiveDocument;

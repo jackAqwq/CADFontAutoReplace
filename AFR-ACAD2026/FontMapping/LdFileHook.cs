@@ -1,0 +1,363 @@
+using System.Collections.Concurrent;
+using System.IO;
+using System.Runtime.InteropServices;
+using AFR_ACAD2026.Services;
+
+namespace AFR_ACAD2026.FontMapping;
+
+/// <summary>
+/// Hook acdb25.dll 的 ldfile 函数，在 DWG 解析阶段拦截字体文件加载。
+/// 当 AutoCAD 尝试加载缺失的字体文件时，透明重定向到用户配置的替换字体。
+///
+/// 时序：PluginEntry.Initialize() → Install() → Hook 就绪
+///       → 用户打开 DWG → AutoCAD 解析 MText → 调用 ldfile
+///       → Hook 检测字体缺失 → 重定向到替换字体 → 文字正常显示
+///
+/// 映射规则：
+///   @xxx.shx 缺失 + xxx.shx 存在 → 重定向到 xxx.shx
+///   @xxx.shx 缺失 + xxx.shx 也缺失 → 重定向到 ConfigService.BigFont
+///   TTF 字体缺失 → 重定向到 ConfigService.BigFont
+///   其他 SHX 缺失 → 重定向到 ConfigService.MainFont
+/// </summary>
+internal static class LdFileHook
+{
+    private const string AcDbDll = "acdb25.dll";
+    private const string LdFileExport = "?ldfile@@YAHPEB_WHPEAVAcDbDatabase@@PEAVAcFontDescription@@@Z";
+    private const int PrologueSize = 21; // 完整指令边界：8×PUSH + LEA
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int LdFileDelegate(IntPtr fileName, int param2, IntPtr db, IntPtr desc);
+
+    // Hook 基础设施
+    private static LdFileDelegate? _hookDelegate;
+    private static LdFileDelegate? _trampolineDelegate;
+    private static IntPtr _targetAddr;
+    private static IntPtr _trampolineAddr;
+    private static byte[]? _savedBytes;
+    private static volatile bool _installed;
+
+    // 字体解析状态
+    private static readonly HashSet<string> _availableFonts = new(StringComparer.OrdinalIgnoreCase);
+    private static string _repMainFont = "";
+    private static string _repBigFont = "";
+    [ThreadStatic] private static bool _inHook;
+
+    // 记录本次会话的重定向（供 AFRLOG 显示）
+    private static readonly ConcurrentDictionary<string, string> _redirectLog = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 安装 ldfile Hook。必须在任何文档打开之前调用（PluginEntry.Initialize）。
+    /// </summary>
+    internal static void Install()
+    {
+        if (_installed) return;
+
+        var log = LogService.Instance;
+
+        try
+        {
+            IntPtr module = GetModuleHandle(AcDbDll);
+            if (module == IntPtr.Zero) { log.Warning("FontMapping: acdb25.dll 未加载"); return; }
+
+            _targetAddr = GetProcAddress(module, LdFileExport);
+            if (_targetAddr == IntPtr.Zero) { log.Warning("FontMapping: 未找到 ldfile 导出"); return; }
+
+            // 加载用户配置
+            var config = ConfigService.Instance;
+            if (!string.IsNullOrEmpty(config.MainFont))
+                _repMainFont = EnsureShx(config.MainFont);
+            if (!string.IsNullOrEmpty(config.BigFont))
+                _repBigFont = EnsureShx(config.BigFont);
+
+            if (string.IsNullOrEmpty(_repMainFont) && string.IsNullOrEmpty(_repBigFont))
+            {
+                log.Info("FontMapping: 未配置替换字体，Hook 未安装");
+                return;
+            }
+
+            // 扫描可用字体
+            ScanAvailableFonts();
+
+            // 保存原始字节
+            _savedBytes = new byte[PrologueSize];
+            Marshal.Copy(_targetAddr, _savedBytes, 0, PrologueSize);
+
+            // 创建 Trampoline：执行保存的原始指令 + JMP 回原函数
+            int trampolineSize = PrologueSize + 14; // 14 = absolute JMP
+            _trampolineAddr = VirtualAlloc(IntPtr.Zero, (uint)trampolineSize,
+                0x3000 /* MEM_COMMIT | MEM_RESERVE */, 0x40 /* PAGE_EXECUTE_READWRITE */);
+            if (_trampolineAddr == IntPtr.Zero) { log.Warning("FontMapping: VirtualAlloc 失败"); return; }
+
+            // 复制原始指令到 Trampoline
+            Marshal.Copy(_savedBytes, 0, _trampolineAddr, PrologueSize);
+
+            // 写入 JMP 回原函数 + PrologueSize
+            WriteAbsoluteJump(_trampolineAddr + PrologueSize, _targetAddr + PrologueSize);
+
+            _trampolineDelegate = Marshal.GetDelegateForFunctionPointer<LdFileDelegate>(_trampolineAddr);
+
+            // 覆盖原函数入口 → JMP 到 HookHandler
+            _hookDelegate = HookHandler;
+            IntPtr hookAddr = Marshal.GetFunctionPointerForDelegate(_hookDelegate);
+
+            VirtualProtect(_targetAddr, (uint)PrologueSize, 0x40, out uint oldProtect);
+
+            // 用 NOP 填充，然后写入 JMP
+            byte[] hookPatch = new byte[PrologueSize];
+            Array.Fill(hookPatch, (byte)0x90);
+            WriteAbsoluteJumpBytes(hookPatch, 0, hookAddr);
+            Marshal.Copy(hookPatch, 0, _targetAddr, PrologueSize);
+
+            VirtualProtect(_targetAddr, (uint)PrologueSize, oldProtect, out _);
+
+            _installed = true;
+            log.Info("FontMapping: ldfile Hook 已安装");
+        }
+        catch (Exception ex)
+        {
+            log.Error("FontMapping: Hook 安装失败", ex);
+        }
+    }
+
+    /// <summary>
+    /// 卸载 Hook，恢复原始函数。
+    /// </summary>
+    internal static void Uninstall()
+    {
+        if (!_installed || _savedBytes == null) return;
+
+        try
+        {
+            VirtualProtect(_targetAddr, (uint)PrologueSize, 0x40, out uint oldProtect);
+            Marshal.Copy(_savedBytes, 0, _targetAddr, PrologueSize);
+            VirtualProtect(_targetAddr, (uint)PrologueSize, oldProtect, out _);
+
+            if (_trampolineAddr != IntPtr.Zero)
+            {
+                VirtualFree(_trampolineAddr, 0, 0x8000);
+                _trampolineAddr = IntPtr.Zero;
+            }
+
+            _installed = false;
+            LogService.Instance.Info("FontMapping: ldfile Hook 已卸载");
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 更新替换字体配置（用户通过 AFR 命令修改配置后调用）。
+    /// </summary>
+    internal static void UpdateConfig()
+    {
+        var config = ConfigService.Instance;
+        _repMainFont = !string.IsNullOrEmpty(config.MainFont) ? EnsureShx(config.MainFont) : "";
+        _repBigFont = !string.IsNullOrEmpty(config.BigFont) ? EnsureShx(config.BigFont) : "";
+    }
+
+    /// <summary>
+    /// 获取本次会话的重定向记录（供 AFRLOG 显示）。
+    /// </summary>
+    internal static List<InlineFontFixRecord> GetRedirectRecords()
+    {
+        var records = new List<InlineFontFixRecord>();
+        foreach (var (missing, replacement) in _redirectLog)
+        {
+            string category = missing.StartsWith('@') ? "SHX大字体"
+                : IsTrueTypeName(missing) ? "TrueType"
+                : "SHX主字体";
+            records.Add(new(missing, replacement, "Hook重定向", category));
+        }
+        return records;
+    }
+
+    #region Hook Handler
+
+    private static int HookHandler(IntPtr fileName, int param2, IntPtr db, IntPtr desc)
+    {
+        // 防止递归
+        if (_inHook || _trampolineDelegate == null)
+            return _trampolineDelegate?.Invoke(fileName, param2, db, desc) ?? -1;
+
+        _inHook = true;
+        try
+        {
+            string fontName = Marshal.PtrToStringUni(fileName) ?? "";
+            if (string.IsNullOrEmpty(fontName))
+                return _trampolineDelegate(fileName, param2, db, desc);
+
+            // 字体文件存在 → 直接放行
+            if (_availableFonts.Contains(fontName) ||
+                _availableFonts.Contains(EnsureShx(fontName)))
+                return _trampolineDelegate(fileName, param2, db, desc);
+
+            // 字体缺失 → 解析替换目标
+            string? resolved = ResolveMissingFont(fontName);
+            if (resolved != null)
+            {
+                _redirectLog.TryAdd(fontName, resolved);
+
+                IntPtr resolvedPtr = Marshal.StringToHGlobalUni(resolved);
+                try
+                {
+                    return _trampolineDelegate(resolvedPtr, param2, db, desc);
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(resolvedPtr);
+                }
+            }
+
+            return _trampolineDelegate(fileName, param2, db, desc);
+        }
+        catch
+        {
+            return _trampolineDelegate!(fileName, param2, db, desc);
+        }
+        finally
+        {
+            _inHook = false;
+        }
+    }
+
+    /// <summary>
+    /// 根据规则解析缺失字体的替换目标。
+    /// </summary>
+    private static string? ResolveMissingFont(string fontName)
+    {
+        // 规则 5/9: @xxx → 优先使用去掉 @ 的基础字体
+        if (fontName.StartsWith('@'))
+        {
+            string baseShx = EnsureShx(fontName[1..]);
+            if (_availableFonts.Contains(baseShx))
+                return baseShx;
+
+            // 规则 6/7: 基础字体也不存在 → BigFont
+            if (!string.IsNullOrEmpty(_repBigFont) && _availableFonts.Contains(_repBigFont))
+                return _repBigFont;
+
+            return null;
+        }
+
+        // 规则 10: TTF 字体缺失 → BigFont
+        if (IsTrueTypeName(fontName))
+        {
+            if (!string.IsNullOrEmpty(_repBigFont) && _availableFonts.Contains(_repBigFont))
+                return _repBigFont;
+            return null;
+        }
+
+        // 规则 2/3/4: 常规 SHX 缺失 → MainFont
+        if (!string.IsNullOrEmpty(_repMainFont) && _availableFonts.Contains(_repMainFont))
+            return _repMainFont;
+
+        // MainFont 也不可用，尝试 BigFont 兜底
+        if (!string.IsNullOrEmpty(_repBigFont) && _availableFonts.Contains(_repBigFont))
+            return _repBigFont;
+
+        return null;
+    }
+
+    #endregion
+
+    #region 字体扫描
+
+    private static void ScanAvailableFonts()
+    {
+        // AutoCAD 安装目录 Fonts
+        try
+        {
+            var acdbModule = System.Diagnostics.Process.GetCurrentProcess().Modules
+                .Cast<System.Diagnostics.ProcessModule>()
+                .FirstOrDefault(m => m.ModuleName?.Equals(AcDbDll, StringComparison.OrdinalIgnoreCase) == true);
+
+            if (acdbModule?.FileName != null)
+            {
+                string fontsDir = Path.Combine(Path.GetDirectoryName(acdbModule.FileName)!, "Fonts");
+                ScanDirectory(fontsDir);
+            }
+        }
+        catch { }
+
+        // 用户支持路径
+        try
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            foreach (string dir in Directory.GetDirectories(
+                Path.Combine(appData, "Autodesk"), "AutoCAD *", SearchOption.TopDirectoryOnly))
+            {
+                foreach (string supportDir in Directory.GetDirectories(dir, "Support", SearchOption.AllDirectories))
+                    ScanDirectory(supportDir);
+            }
+        }
+        catch { }
+    }
+
+    private static void ScanDirectory(string dir)
+    {
+        if (!Directory.Exists(dir)) return;
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(dir))
+            {
+                string ext = Path.GetExtension(file);
+                if (ext.Equals(".shx", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".ttf", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".ttc", StringComparison.OrdinalIgnoreCase))
+                {
+                    _availableFonts.Add(Path.GetFileName(file));
+                }
+            }
+        }
+        catch { }
+    }
+
+    #endregion
+
+    #region 底层工具
+
+    private static string EnsureShx(string name) =>
+        name.EndsWith(".shx", StringComparison.OrdinalIgnoreCase) ? name : name + ".shx";
+
+    private static bool IsTrueTypeName(string name) =>
+        name.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+        name.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
+        name.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 在指定内存地址写入 14 字节的绝对跳转 (FF 25 + 8 字节地址)。
+    /// </summary>
+    private static void WriteAbsoluteJump(IntPtr location, IntPtr target)
+    {
+        byte[] jmp = new byte[14];
+        WriteAbsoluteJumpBytes(jmp, 0, target);
+        Marshal.Copy(jmp, 0, location, 14);
+    }
+
+    private static void WriteAbsoluteJumpBytes(byte[] buffer, int offset, IntPtr target)
+    {
+        buffer[offset] = 0xFF;
+        buffer[offset + 1] = 0x25;
+        buffer[offset + 2] = 0x00;
+        buffer[offset + 3] = 0x00;
+        buffer[offset + 4] = 0x00;
+        buffer[offset + 5] = 0x00;
+        BitConverter.GetBytes(target.ToInt64()).CopyTo(buffer, offset + 6);
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Ansi, ExactSpelling = true)]
+    private static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool VirtualProtect(IntPtr lpAddress, uint dwSize, uint flNewProtect, out uint lpflOldProtect);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr VirtualAlloc(IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool VirtualFree(IntPtr lpAddress, uint dwSize, uint dwFreeType);
+
+    #endregion
+}
