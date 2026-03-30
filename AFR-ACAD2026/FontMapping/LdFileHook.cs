@@ -6,6 +6,15 @@ using AFR_ACAD2026.Services;
 namespace AFR_ACAD2026.FontMapping;
 
 /// <summary>
+/// 单条内联字体修复记录。
+/// </summary>
+internal sealed record InlineFontFixRecord(
+    string MissingFont,
+    string ReplacementFont,
+    string FixMethod,      // "Hook重定向"
+    string FontCategory);  // "SHX主字体" / "SHX大字体" / "TrueType"
+
+/// <summary>
 /// Hook acdb25.dll 的 ldfile 函数，在 DWG 解析阶段拦截字体文件加载。
 /// 当 AutoCAD 尝试加载缺失的字体文件时，透明重定向到用户配置的替换字体。
 ///

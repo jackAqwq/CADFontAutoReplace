@@ -45,7 +45,7 @@ internal sealed class ExecutionController
             {
                 // 第零阶段: 收集 Hook 重定向记录
                 // ldfile Hook 已在 DWG 解析阶段完成字体重定向，此处仅收集结果供 AFRLOG 显示
-                var inlineFixResults = FontMappingService.CollectRedirectRecords();
+                var inlineFixResults = LdFileHook.GetRedirectRecords();
                 contextMgr.StoreInlineFontFixResults(doc, inlineFixResults);
 
                 // 第一阶段: 检测缺失字体
