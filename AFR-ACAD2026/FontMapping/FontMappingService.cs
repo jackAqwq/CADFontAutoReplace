@@ -6,23 +6,24 @@ using AFR_ACAD2026.Services;
 namespace AFR_ACAD2026.FontMapping;
 
 /// <summary>
-/// 字体映射服务 — 为图纸中缺失的 SHX 字体创建硬链接，
-/// 解决 MText 内联字体码引用的字体缺失导致的乱码问题。
+/// 字体映射服务 — 专门处理 FontReplacer 无法覆盖的字体缺失场景。
 ///
-/// 处理逻辑（三阶段）：
+/// FontReplacer 通过修改 TextStyleTableRecord 替换样式表中的缺失字体，
+/// 但 MText 内联字体码（\Fgbenor,@gbcbig|c134;）绕过了样式表，
+/// 直接按文件名加载字体，FontReplacer 无法修复。
 ///
-/// 阶段 1 — 常规 SHX 字体（无 @ 前缀）：
+/// 本服务仅处理 MText 内联字体码中引用的缺失字体：
+///
+/// 阶段 1 — 内联 SHX 字体（无 @ 前缀）：
 ///   缺失的主字体 → 硬链接到 ConfigService.MainFont
 ///   缺失的大字体 → 硬链接到 ConfigService.BigFont
 ///
-/// 阶段 2 — @前缀竖排大字体（如 @gbcbig）：
+/// 阶段 2 — 内联 @前缀竖排大字体（如 @gbcbig）：
 ///   @xxx 缺失 + xxx 存在（原文件或阶段1新建）→ 硬链接 @xxx → xxx
 ///   @xxx 缺失 + xxx 不存在 → 硬链接 @xxx → ConfigService.BigFont
 ///
-/// 阶段 3 — MText 内联 TrueType 字体（仅内联码，不影响样式表）：
+/// 阶段 3 — 内联 TrueType 字体：
 ///   缺失的 TTF 主字体 → 修改 MText.Contents，替换为 ConfigService.MainFont
-///
-/// 字体引用来源：TextStyleTable + MText 内联字体码（\F...;）。
 /// </summary>
 internal static partial class FontMappingService
 {
@@ -210,29 +211,16 @@ internal static partial class FontMappingService
     #region 字体引用收集
 
     /// <summary>
-    /// 从 TextStyleTable 和 MText 内联字体码中收集所有 SHX 字体引用。
+    /// 仅从 MText 内联字体码中收集 SHX 字体引用。
+    /// 样式表中的缺失字体由 FontReplacer 处理，不在此收集。
     /// </summary>
     private static void CollectFontReferences(Database db, HashSet<string> mainFonts, HashSet<string> bigFonts)
     {
         try
         {
             using var tr = db.TransactionManager.StartOpenCloseTransaction();
-
-            // 文字样式表
-            var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
-            foreach (ObjectId id in styleTable)
-            {
-                var style = (TextStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
-
-                if (IsShxName(style.FileName))
-                    mainFonts.Add(style.FileName);
-
-                if (!string.IsNullOrEmpty(style.BigFontFileName))
-                    bigFonts.Add(style.BigFontFileName);
-            }
-
-            // MText 内联字体码
             var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+
             foreach (ObjectId btrId in bt)
             {
                 var btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
