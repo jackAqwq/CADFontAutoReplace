@@ -91,6 +91,9 @@ internal static class LdFileHook
             _savedBytes = new byte[PrologueSize];
             Marshal.Copy(_targetAddr, _savedBytes, 0, PrologueSize);
 
+            // 诊断: 输出 prologue 字节，用于验证是否包含 RIP 相对指令
+            log.Info($"FontMapping: ldfile prologue ({PrologueSize} bytes): {BitConverter.ToString(_savedBytes)}");
+
             // 创建 Trampoline：执行保存的原始指令 + JMP 回原函数
             int trampolineSize = PrologueSize + 14; // 14 = absolute JMP
             _trampolineAddr = VirtualAlloc(IntPtr.Zero, (uint)trampolineSize,
@@ -234,8 +237,7 @@ internal static class LdFileHook
             if (fontExists)
                 return _trampolineDelegate(fileName, param2, db, desc);
 
-            // 系统 TrueType 字族名放行 — ldfile 可能收到字族名（如 "宋体"），
-            // 这些不在 _availableFonts（文件名集合）中但确实已安装，不应重定向。
+            // 系统 TrueType 字族名放行
             string baseName = fontName.TrimStart('@');
             if (FontDetector.IsSystemFont(baseName))
                 return _trampolineDelegate(fileName, param2, db, desc);
