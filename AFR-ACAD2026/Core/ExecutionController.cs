@@ -43,7 +43,12 @@ internal sealed class ExecutionController
             // 获取文档写入锁
             using (doc.LockDocument())
             {
-                // 第一阶段: 检测缺失字体（样式表）
+                // 第一阶段: 预先 Regen — 让 AutoCAD 处理 MText 内联字体码并写入样式表
+                // 必须在 FontReplacer 之前执行，否则 Regen 会将内联字体（如 @Arial Unicode MS.shx）
+                // 写回样式表，覆盖 FontReplacer 的修改。
+                doc.Editor.Regen();
+
+                // 第二阶段: 检测缺失字体（样式表）— 在 Regen 稳定后检测
                 var missingFonts = FontDetector.DetectMissingFonts(doc.Database);
 
                 // 存储检测结果供 AFRLOG 命令使用
@@ -56,11 +61,11 @@ internal sealed class ExecutionController
                     return;
                 }
 
-                // 第二阶段: 替换样式表中的缺失字体
-                int replaceCount = FontReplacer.ReplaceMissingFonts(
+                // 第三阶段: 替换样式表中的缺失字体（最终覆盖，不再 Regen）
+                FontReplacer.ReplaceMissingFonts(
                     doc.Database, missingFonts, config.MainFont, config.BigFont, config.TrueTypeFont);
 
-                // 第三阶段: 收集 Hook 重定向记录（过滤样式表缺失字体，仅保留 MText 内联字体）
+                // 第四阶段: 收集 Hook 重定向记录（过滤样式表缺失字体，仅保留 MText 内联字体）
                 // 排除集仅包含样式表中确认缺失的字体（由 FontReplacer 处理），
                 // 不排除存在的字体，避免误过滤 MText 内联字体（如 @gbcbig → gbcbig）。
                 var styleMissingFonts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -77,12 +82,6 @@ internal sealed class ExecutionController
 
                 // 添加统计汇总
                 log.AddStatistics(missingFonts, inlineFixResults.Count);
-
-                // 第四阶段: 重新生成图形
-                if (replaceCount > 0)
-                {
-                    doc.Editor.Regen();
-                }
             }
 
             contextMgr.MarkExecuted(doc);

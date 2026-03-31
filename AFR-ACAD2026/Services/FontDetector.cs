@@ -65,11 +65,14 @@ internal static class FontDetector
                 var font = style.Font;
 
                 // 判断样式类型：SHX 还是 TrueType
-                // 当 FileName 有 .shx 后缀时，以 SHX 为准（匹配 ST 对话框显示行为），
-                // 即使 Font.TypeFace 也有值（DWG 数据不一致时以 FileName 为准）。
-                bool hasShxFileName = !string.IsNullOrWhiteSpace(fileName)
-                    && fileName.EndsWith(".shx", StringComparison.OrdinalIgnoreCase);
-                bool isTrueType = !string.IsNullOrEmpty(font.TypeFace) && !hasShxFileName;
+                // AutoCAD 样式表中 FileName 存储 SHX 文件名（可能不带 .shx 后缀），
+                // 而 Font.TypeFace 存储 TrueType 字族名。两者可能同时有值（DWG 数据不一致）。
+                // 规则：FileName 有值且不是 TrueType 文件路径 → 以 SHX 为准（匹配 ST 对话框行为）。
+                bool fileNameIsSHX = !string.IsNullOrWhiteSpace(fileName)
+                    && !fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
+                    && !fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase)
+                    && !fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
+                bool isTrueType = !string.IsNullOrEmpty(font.TypeFace) && !fileNameIsSHX;
                 bool isMainMissing = false;
                 bool isBigMissing = false;
 
