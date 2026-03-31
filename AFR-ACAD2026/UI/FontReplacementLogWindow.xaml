@@ -23,7 +23,7 @@
     </Window.Resources>
 
 	<Border CornerRadius="10" Background="{DynamicResource RegionBrush}"
-			TextElement.FontFamily="HarmonyOS Sans SC, Microsoft YaHei, SimHei"
+			TextElement.FontFamily="鸿蒙黑体, 微软雅黑, 黑体"
 			MouseLeftButtonDown="Window_MouseLeftButtonDown">
         <Grid Margin="20,14,20,14">
             <Grid.RowDefinitions>
