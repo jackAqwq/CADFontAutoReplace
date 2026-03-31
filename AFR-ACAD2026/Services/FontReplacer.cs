@@ -75,10 +75,11 @@ internal static class FontReplacer
                         // SHX 只用 SHX 字体替换
                         if (!string.IsNullOrEmpty(mainFont))
                         {
-                            style.FileName = mainFont;
-                            // 清除残留的 TrueType 属性，避免 SHX/TrueType 数据不一致
+                            // 必须先清除 TrueType 属性再设置 FileName，
+                            // 否则设置 Font 可能重置 FileName
                             if (!string.IsNullOrEmpty(style.Font.TypeFace))
                                 style.Font = new FontDescriptor("", false, false, 0, 0);
+                            style.FileName = mainFont;
                             changed = true;
                         }
                     }
@@ -145,10 +146,10 @@ internal static class FontReplacer
                     }
                     else
                     {
-                        style.FileName = replacement.MainFontReplacement;
-                        // 清除残留的 TrueType 属性，避免 SHX/TrueType 数据不一致
+                        // 必须先清除 TrueType 属性再设置 FileName
                         if (!string.IsNullOrEmpty(style.Font.TypeFace))
                             style.Font = new FontDescriptor("", false, false, 0, 0);
+                        style.FileName = replacement.MainFontReplacement;
                     }
                     changed = true;
                 }
