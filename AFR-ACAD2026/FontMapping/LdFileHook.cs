@@ -51,8 +51,8 @@ internal static class LdFileHook
     private static string _repBigFont = "";
     [ThreadStatic] private static bool _inHook;
 
-    // 记录本次会话的重定向（供 AFRLOG 显示）
-    private static readonly ConcurrentDictionary<string, string> _redirectLog = new(StringComparer.OrdinalIgnoreCase);
+    // 记录本次会话的重定向: fontName → (replacement, fontType)
+    private static readonly ConcurrentDictionary<string, (string Replacement, int FontType)> _redirectLog = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// 安装 ldfile Hook。必须在任何文档打开之前调用（PluginEntry.Initialize）。
@@ -169,10 +169,11 @@ internal static class LdFileHook
     internal static List<InlineFontFixRecord> GetRedirectRecords()
     {
         var records = new List<InlineFontFixRecord>();
-        foreach (var (missing, replacement) in _redirectLog)
+        foreach (var (missing, (replacement, fontType)) in _redirectLog)
         {
             string category = missing.StartsWith('@') ? "SHX大字体"
                 : IsTrueTypeName(missing) ? "TrueType"
+                : fontType == FontTypeBigFont ? "SHX大字体"
                 : "SHX主字体";
             records.Add(new(missing, replacement, "MText映射", category));
         }
@@ -180,6 +181,14 @@ internal static class LdFileHook
     }
 
     #region Hook Handler
+
+    // ldfile param2 字体类型常量（基于 AutoCAD 行为推断）
+    // param2=0: 常规 SHX 主字体
+    // param2=1: SHX 大字体（Big Font）
+    // param2=2: SHX 形文件（Shape File）
+    private const int FontTypeRegular = 0;
+    private const int FontTypeBigFont = 1;
+    private const int FontTypeShape = 2;
 
     private static int HookHandler(IntPtr fileName, int param2, IntPtr db, IntPtr desc)
     {
@@ -194,16 +203,20 @@ internal static class LdFileHook
             if (string.IsNullOrEmpty(fontName))
                 return _trampolineDelegate(fileName, param2, db, desc);
 
+            // 形文件请求 → 不拦截，由 AutoCAD 自行处理
+            if (param2 == FontTypeShape)
+                return _trampolineDelegate(fileName, param2, db, desc);
+
             // 字体文件存在 → 直接放行
             if (_availableFonts.Contains(fontName) ||
                 _availableFonts.Contains(EnsureShx(fontName)))
                 return _trampolineDelegate(fileName, param2, db, desc);
 
-            // 字体缺失 → 解析替换目标
-            string? resolved = ResolveMissingFont(fontName);
+            // 字体缺失 → 根据 param2 类型选择正确的替换字体
+            string? resolved = ResolveMissingFont(fontName, param2);
             if (resolved != null)
             {
-                _redirectLog.TryAdd(fontName, resolved);
+                _redirectLog.TryAdd(fontName, (resolved, param2));
 
                 IntPtr resolvedPtr = Marshal.StringToHGlobalUni(resolved);
                 try
@@ -230,8 +243,9 @@ internal static class LdFileHook
 
     /// <summary>
     /// 根据规则解析缺失字体的替换目标。
+    /// param2 编码了 AutoCAD 期望的字体类型，决定使用 MainFont 还是 BigFont。
     /// </summary>
-    private static string? ResolveMissingFont(string fontName)
+    private static string? ResolveMissingFont(string fontName, int fontType)
     {
         // 规则 5/9: @xxx → 优先使用去掉 @ 的基础字体
         if (fontName.StartsWith('@'))
@@ -255,13 +269,17 @@ internal static class LdFileHook
             return null;
         }
 
-        // 规则 2/3/4: 常规 SHX 缺失 → MainFont
+        // 根据 param2 区分：AutoCAD 期望大字体 → 用 BigFont，期望主字体 → 用 MainFont
+        if (fontType == FontTypeBigFont)
+        {
+            if (!string.IsNullOrEmpty(_repBigFont) && _availableFonts.Contains(_repBigFont))
+                return _repBigFont;
+            return null;
+        }
+
+        // 常规 SHX 缺失 → MainFont
         if (!string.IsNullOrEmpty(_repMainFont) && _availableFonts.Contains(_repMainFont))
             return _repMainFont;
-
-        // MainFont 也不可用，尝试 BigFont 兜底
-        if (!string.IsNullOrEmpty(_repBigFont) && _availableFonts.Contains(_repBigFont))
-            return _repBigFont;
 
         return null;
     }
