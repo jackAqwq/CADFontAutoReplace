@@ -27,6 +27,7 @@ public class PluginEntry : IExtensionApplication
     private static volatile bool _unloaded;
     private static readonly object _scheduleLock = new();
     private static string _originalFontAlt = "simplex.shx";
+    private static string _originalFontMap = "";
 
     /// <summary>
     /// 静态构造函数：在类型首次使用时注册嵌入程序集解析。
@@ -85,15 +86,16 @@ public class PluginEntry : IExtensionApplication
                 log.Info("AFR 插件首次安装完成，请执行 AFR 命令配置替换字体。");
             }
 
-            // 第 1.5 阶段: 关闭 AutoCAD 原生字体替代
-            // FONTALT="." 禁止 AutoCAD 在 DWG 加载时抢先用 simplex.shx 替代缺失字体，
+            // 第 1.5 阶段: 关闭 AutoCAD 原生字体替代机制
+            // FONTALT="." 禁止 AutoCAD 用 simplex.shx 替代缺失字体，
+            // FONTMAP=""  禁止 acad.fmp 字体映射表静默替换字体。
             // 由 LdFileHook（文件级重定向）和 FontReplacer（数据库级替换）全权接管。
-            // 若不关闭，AutoCAD 替代结果写入样式内部状态，与 FontReplacer 的替换不一致，
-            // 导致 ST 弹出"当前样式已修改"。
             try
             {
                 _originalFontAlt = (string)AcadApp.GetSystemVariable("FONTALT");
+                _originalFontMap = (string)AcadApp.GetSystemVariable("FONTMAP");
                 AcadApp.SetSystemVariable("FONTALT", ".");
+                AcadApp.SetSystemVariable("FONTMAP", "");
             }
             catch { }
 
@@ -116,8 +118,12 @@ public class PluginEntry : IExtensionApplication
 
     public void Terminate()
     {
-        // 还原 FONTALT 为插件加载前的值
-        try { AcadApp.SetSystemVariable("FONTALT", _originalFontAlt); }
+        // 还原 FONTALT/FONTMAP 为插件加载前的值
+        try
+        {
+            AcadApp.SetSystemVariable("FONTALT", _originalFontAlt);
+            AcadApp.SetSystemVariable("FONTMAP", _originalFontMap);
+        }
         catch { }
 
         LdFileHook.Uninstall();
@@ -146,8 +152,12 @@ public class PluginEntry : IExtensionApplication
             }
         }
 
-        // 还原 FONTALT
-        try { AcadApp.SetSystemVariable("FONTALT", _originalFontAlt); }
+        // 还原 FONTALT/FONTMAP
+        try
+        {
+            AcadApp.SetSystemVariable("FONTALT", _originalFontAlt);
+            AcadApp.SetSystemVariable("FONTMAP", _originalFontMap);
+        }
         catch { }
 
         // 卸载 Hook
