@@ -21,6 +21,7 @@
     </Window.Resources>
 
     <Border CornerRadius="10" Background="{DynamicResource RegionBrush}"
+            TextElement.FontFamily="HarmonyOS Sans SC, Microsoft YaHei, SimHei"
             MouseLeftButtonDown="Window_MouseLeftButtonDown">
         <Grid Margin="20,14,20,14">
             <Grid.RowDefinitions>
@@ -48,7 +49,7 @@
                              IsReadOnly="True"
                              VerticalScrollBarVisibility="Auto"
                              HorizontalScrollBarVisibility="Disabled"
-                             FontFamily="pack://application:,,,/AFR-ACAD2026;component/MTextEditor/Fonts/#JetBrains Maple Mono, Consolas" FontSize="13"
+                             FontFamily="JetBrains Maple Mono, Cascadia Code, Consolas, Microsoft YaHei" FontSize="13"
                              Padding="8,6"
                              BorderThickness="0"
                              Background="{DynamicResource SecondaryRegionBrush}"

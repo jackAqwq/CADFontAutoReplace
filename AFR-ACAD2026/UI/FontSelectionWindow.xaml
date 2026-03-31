@@ -21,6 +21,7 @@
     </Window.Resources>
 
     <Border CornerRadius="10" Background="{DynamicResource RegionBrush}"
+            TextElement.FontFamily="HarmonyOS Sans SC, Microsoft YaHei, SimHei"
             MouseLeftButtonDown="Window_MouseLeftButtonDown">
         <Grid Margin="20,16,20,16">
             <Grid.RowDefinitions>

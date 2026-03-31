@@ -22,8 +22,9 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border CornerRadius="10" Background="{DynamicResource RegionBrush}"
-            MouseLeftButtonDown="Window_MouseLeftButtonDown">
+	<Border CornerRadius="10" Background="{DynamicResource RegionBrush}"
+			TextElement.FontFamily="HarmonyOS Sans SC, Microsoft YaHei, SimHei"
+			MouseLeftButtonDown="Window_MouseLeftButtonDown">
         <Grid Margin="20,14,20,14">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>  <!-- 0: 标题 -->
