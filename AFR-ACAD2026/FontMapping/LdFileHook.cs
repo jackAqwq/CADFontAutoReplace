@@ -269,28 +269,20 @@ internal static class LdFileHook
     /// </summary>
     private static string? ResolveMissingFont(string fontName, int fontType)
     {
-        // 规则 5/9: @xxx → 优先使用去掉 @ 的基础字体（支持 @@xxx 双前缀）
+        // @xxx → 优先尝试去掉 @ 的基础字体（支持 @@xxx 双前缀）
         if (fontName.StartsWith('@'))
         {
             string baseName = fontName.TrimStart('@');
             string baseShx = EnsureShx(baseName);
             if (_availableFonts.Contains(baseShx))
                 return baseShx;
-
-            // 规则 6/7: 基础字体也不存在 → BigFont
-            if (!string.IsNullOrEmpty(_repBigFont) && _availableFonts.Contains(_repBigFont))
-                return _repBigFont;
-
-            return null;
+            // 基础字体不存在 → 回落到 param2 逻辑（不盲目用 BigFont）
+            // @ 前缀可能是 TrueType 竖排（如 @Arial Unicode MS）或 SHX 大字体竖排
         }
 
-        // 规则 10: TTF 字体缺失 → BigFont
+        // TTF 字体通常不经过 ldfile，但如果出现则跳过（由系统字体 API 处理）
         if (IsTrueTypeName(fontName))
-        {
-            if (!string.IsNullOrEmpty(_repBigFont) && _availableFonts.Contains(_repBigFont))
-                return _repBigFont;
             return null;
-        }
 
         // 根据 param2 区分：AutoCAD 期望大字体 → 用 BigFont，期望主字体 → 用 MainFont
         if (fontType == FontTypeBigFont)
