@@ -186,13 +186,9 @@ internal static class LdFileHook
         var records = new List<InlineFontFixRecord>();
         foreach (var (missing, (replacement, fontType)) in _redirectLog)
         {
-            // 过滤样式表字体
-            if (exclude != null)
-            {
-                string baseName = missing.TrimStart('@');
-                if (exclude.Contains(missing) || exclude.Contains(baseName))
-                    continue;
-            }
+            // 过滤样式表缺失字体（精确匹配，不剥离 @ 前缀）
+            if (exclude != null && exclude.Contains(missing))
+                continue;
 
             string category = missing.StartsWith('@') ? "SHX大字体"
                 : IsTrueTypeName(missing) ? "TrueType"
