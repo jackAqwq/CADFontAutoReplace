@@ -56,17 +56,19 @@ internal sealed class ExecutionController
                     return;
                 }
 
-                // 第二阶段: 替换缺失字体
-                // 不执行 Regen — 原因：
-                //   Regen 处理 MText 内联码时会将缺失字体名（如 @Arial Unicode MS.shx）
-                //   写回样式表并缓存到 AutoCAD 内部状态，无论之后 Replace 多少次，
-                //   内部状态始终与数据库不一致，导致 ST 对话框弹出"当前样式已修改"。
-                // 不需要 Regen 的理由：
-                //   SHX 字体：LdFileHook 已在 DWG 加载阶段将缺失字体重定向到替换字体，
-                //             渲染结果已正确，无需 Regen 刷新显示。
-                //   TrueType：下次用户交互（缩放/平移）触发自动 Regen 时显示更新。
+                // 第二阶段: 替换缺失字体 + Regen 同步解析器缓存
+                //
+                // FontReplacer: 将数据库中的缺失字体替换为可用字体。
+                // Regen:        强制 AutoCAD 字体解析器以更新后的数据库重新解析。
+                //   DWG 加载时解析器对缺失字体建立了替代缓存（如 FangSong_GB2312 → @Arial Unicode MS），
+                //   仅修改数据库不会清除此缓存。Regen 触发重新解析，此时数据库中的字体均已可用，
+                //   解析器不会再产生替代映射，内部状态与数据库一致。
+                //   注: 之前 Regen 导致问题是因为 IsShapeFile 分类错误使部分字体未被正确替换，
+                //       解析器仍对缺失字体执行替代。现已改用 Font.TypeFace 分类，替换完整。
                 FontReplacer.ReplaceMissingFonts(
                     doc.Database, missingFonts, config.MainFont, config.BigFont, config.TrueTypeFont);
+
+                doc.Editor.Regen();
 
                 // 第三阶段: 收集 Hook 重定向记录（过滤样式表缺失字体，仅保留 MText 内联字体）
                 // 排除集仅包含样式表中确认缺失的字体（由 FontReplacer 处理），
