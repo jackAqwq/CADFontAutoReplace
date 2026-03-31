@@ -74,12 +74,16 @@ internal static class FontDetector
                 }
                 else if (!string.IsNullOrWhiteSpace(fileName))
                 {
-                    isMainMissing = !IsShxFontAvailable(fileName, db);
+                    // 检查主字体：文件必须存在且不能是大字体文件
+                    isMainMissing = !IsShxFontAvailable(fileName, db)
+                                 || IsShxTypeMismatch(fileName, db, expectBigFont: false);
                 }
 
                 if (!string.IsNullOrWhiteSpace(bigFontName))
                 {
-                    isBigMissing = !IsShxFontAvailable(bigFontName, db);
+                    // 检查大字体：文件必须存在且必须是大字体文件
+                    isBigMissing = !IsShxFontAvailable(bigFontName, db)
+                                || IsShxTypeMismatch(bigFontName, db, expectBigFont: true);
                 }
 
                 if (isMainMissing || isBigMissing)
@@ -231,6 +235,71 @@ internal static class FontDetector
 
         _findFileCache.TryAdd(cacheKey, found);
         return found;
+    }
+
+    /// <summary>
+    /// 查找字体文件并返回完整路径。
+    /// </summary>
+    private static string? TryFindFilePath(string fileName, Database db, FindFileHint hint)
+    {
+        try
+        {
+            string normalized = NormalizeFontName(fileName);
+            string result = HostApplicationServices.Current.FindFile(normalized, db, hint);
+            if (!string.IsNullOrEmpty(result)) return result;
+
+            if (!Path.HasExtension(normalized))
+            {
+                result = HostApplicationServices.Current.FindFile(normalized + ".shx", db, hint);
+                if (!string.IsNullOrEmpty(result)) return result;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    // SHX 类型分类缓存: filePath → isBigFont
+    private static readonly ConcurrentDictionary<string, bool> _shxTypeCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 检查 SHX 字体文件的类型是否与槽位不匹配。
+    /// expectBigFont=true: 大字体槽位，文件应为 bigfont；
+    /// expectBigFont=false: 主字体槽位，文件不应为 bigfont。
+    /// </summary>
+    private static bool IsShxTypeMismatch(string fileName, Database db, bool expectBigFont)
+    {
+        string? filePath = TryFindFilePath(fileName, db, FindFileHint.CompiledShapeFile);
+        if (filePath == null) return false; // 文件不存在，由 IsShxFontAvailable 处理
+
+        bool isBigFont = ClassifyShxFile(filePath);
+        return expectBigFont != isBigFont;
+    }
+
+    /// <summary>
+    /// 读取 SHX 文件头判断是否为大字体文件。
+    /// 文件头 "AutoCAD-86 bigfont 1.0" = 大字体，其他 = 常规字体/形文件。
+    /// </summary>
+    private static bool ClassifyShxFile(string filePath)
+    {
+        if (_shxTypeCache.TryGetValue(filePath, out bool cached))
+            return cached;
+
+        bool isBigFont = false;
+        try
+        {
+            byte[] header = new byte[30];
+            using var fs = File.OpenRead(filePath);
+            int bytesRead = fs.Read(header, 0, 30);
+            if (bytesRead >= 25)
+            {
+                string headerStr = System.Text.Encoding.ASCII.GetString(header, 0, bytesRead);
+                isBigFont = headerStr.Contains("bigfont", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch { }
+
+        _shxTypeCache.TryAdd(filePath, isBigFont);
+        return isBigFont;
     }
 
     /// <summary>
