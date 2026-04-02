@@ -1,7 +1,6 @@
-using System.Collections.Concurrent;
-using System.Reflection;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.Runtime;
+using System.Reflection;
 using AFR.Abstractions;
 using AFR.Platform;
 using AFR.Services;
@@ -24,11 +23,8 @@ public abstract class PluginEntryBase : IExtensionApplication
     private static string _originalFontAlt = "simplex.shx";
     private static string _originalFontMap = "";
 
-    // 缓存已解析的嵌入程序集
-    private static readonly ConcurrentDictionary<string, Assembly> _resolvedAssemblies = new();
-
-    // 插件主程序集引用 — 在 RegisterAssemblyResolve 时捕获
-    private static Assembly? _pluginAssembly;
+    // 嵌入程序集缓存（HandyControl 等第三方依赖）
+    private static Assembly? _resolvedHandyControl;
 
     // ── 子类必须实现 ──
 
@@ -50,49 +46,34 @@ public abstract class PluginEntryBase : IExtensionApplication
     // ── 嵌入程序集解析 ──
 
     /// <summary>
-    /// 注册嵌入程序集解析。必须在派生类的静态构造函数中调用。
+    /// 从插件主程序集的嵌入资源中加载第三方依赖（如 HandyControl）。
+    /// 使用 typeof(PluginEntryBase).Assembly 获取插件程序集，
+    /// 因为 PluginEntryBase 通过 Shared Project 编译进插件 DLL。
     /// </summary>
-    protected static void RegisterAssemblyResolve()
-    {
-        _pluginAssembly = Assembly.GetCallingAssembly();
-        AppDomain.CurrentDomain.AssemblyResolve += OnResolveEmbeddedAssembly;
-    }
-
     private static Assembly? OnResolveEmbeddedAssembly(object? sender, ResolveEventArgs args)
     {
-        var assemblyName = new AssemblyName(args.Name).Name;
-        if (assemblyName == null) return null;
+        var name = new AssemblyName(args.Name).Name;
+        if (name == null || !string.Equals(name, "HandyControl", StringComparison.OrdinalIgnoreCase))
+            return null;
 
-        if (_resolvedAssemblies.TryGetValue(assemblyName, out var cached))
-            return cached;
+        if (_resolvedHandyControl != null) return _resolvedHandyControl;
 
-        var resourceName = assemblyName + ".dll";
-        // 从插件主程序集的嵌入资源中加载依赖
-        if (_pluginAssembly == null) return null;
-        using var stream = _pluginAssembly.GetManifestResourceStream(resourceName);
+        using var stream = typeof(PluginEntryBase).Assembly.GetManifestResourceStream(name + ".dll");
         if (stream == null) return null;
 
         var data = new byte[stream.Length];
-#if NET8_0_OR_GREATER
         stream.ReadExactly(data);
-#else
-        int totalRead = 0;
-        while (totalRead < data.Length)
-        {
-            int read = stream.Read(data, totalRead, data.Length - totalRead);
-            if (read == 0) break;
-            totalRead += read;
-        }
-#endif
-        var assembly = Assembly.Load(data);
-        _resolvedAssemblies.TryAdd(assemblyName, assembly);
-        return assembly;
+        _resolvedHandyControl = Assembly.Load(data);
+        return _resolvedHandyControl;
     }
 
     // ── IExtensionApplication ──
 
     public void Initialize()
     {
+        // 注册嵌入程序集解析（HandyControl 等第三方依赖）
+        AppDomain.CurrentDomain.AssemblyResolve += OnResolveEmbeddedAssembly;
+
         // 第负一阶段: 注册平台 — 必须最先执行
         PlatformManager.Initialize(CreatePlatform(), CreateFontHook(), CreateHost(), CreateLogger(), CreateFontScanner());
 

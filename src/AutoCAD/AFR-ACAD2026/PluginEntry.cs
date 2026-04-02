@@ -1,4 +1,3 @@
-using System.Reflection;
 using Autodesk.AutoCAD.Runtime;
 using AFR.Abstractions;
 using AFR.FontMapping;
@@ -16,11 +15,6 @@ namespace AFR;
 /// </summary>
 public class PluginEntry : PluginEntryBase
 {
-    static PluginEntry()
-    {
-        RegisterAssemblyResolve();
-    }
-
     protected override ICadPlatform CreatePlatform() => new AutoCad2026Platform();
     protected override IFontHook CreateFontHook() => new AutoCadFontHook();
     protected override ICadHost CreateHost() => new AutoCadHost();

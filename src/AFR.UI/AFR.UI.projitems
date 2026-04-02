@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>{E3F4A5B6-C7D8-4E9F-A0B1-2C3D4E5F6A71}</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>AFR</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- FontSelection -->
+    <Page Include="$(MSBuildThisFileDirectory)FontSelection\FontSelectionWindow.xaml" Link="FontSelection\FontSelectionWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)FontSelection\FontSelectionWindow.xaml.cs" Link="FontSelection\FontSelectionWindow.xaml.cs">
+      <DependentUpon>FontSelectionWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="$(MSBuildThisFileDirectory)FontSelection\FontSelectionViewModel.cs" Link="FontSelection\FontSelectionViewModel.cs" />
+    <!-- FontLog -->
+    <Page Include="$(MSBuildThisFileDirectory)FontLog\FontReplacementLogWindow.xaml" Link="FontLog\FontReplacementLogWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)FontLog\FontReplacementLogWindow.xaml.cs" Link="FontLog\FontReplacementLogWindow.xaml.cs">
+      <DependentUpon>FontReplacementLogWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="$(MSBuildThisFileDirectory)FontLog\FontReplacementLogViewModel.cs" Link="FontLog\FontReplacementLogViewModel.cs" />
+    <!-- MTextEditor -->
+    <Page Include="$(MSBuildThisFileDirectory)MTextEditor\MTextEditorWindow.xaml" Link="MTextEditor\MTextEditorWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)MTextEditor\MTextEditorWindow.xaml.cs" Link="MTextEditor\MTextEditorWindow.xaml.cs">
+      <DependentUpon>MTextEditorWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="$(MSBuildThisFileDirectory)MTextEditor\MTextEditorViewModel.cs" Link="MTextEditor\MTextEditorViewModel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MTextEditor\MTextSyntaxHighlighter.cs" Link="MTextEditor\MTextSyntaxHighlighter.cs" />
+  </ItemGroup>
+</Project>
