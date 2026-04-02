@@ -1,0 +1,8 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- 统一构建产物输出到 artifacts/ 目录 -->
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+  </PropertyGroup>
+
+</Project>

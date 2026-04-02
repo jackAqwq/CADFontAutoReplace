@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>AFR</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <!-- 导入 AutoCAD 共享源码 -->
+  <Import Project="..\AFR.AutoCAD\AFR.AutoCAD.projitems" Label="Shared" />
+
+  <ItemGroup>
+    <!-- 核心库 -->
+    <ProjectReference Include="..\..\AFR.Core\AFR.Core.csproj" />
+    <ProjectReference Include="..\..\AFR.UI\AFR.UI.csproj" />
+    <!-- AutoCAD SDK — 由 AutoCAD 运行时提供，不复制到输出 -->
+    <PackageReference Include="AutoCAD.NET">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <!-- HandyControl — 编译引用，运行时从嵌入资源加载 -->
+    <PackageReference Include="HandyControl">
+      <GeneratePathProperty>true</GeneratePathProperty>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- 将依赖 DLL 嵌入为程序集资源，实现单 DLL 分发 -->
+  <Target Name="EmbedDependencies" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <EmbeddedResource Include="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'HandyControl'&#xD;&#xA;                              Or '%(Filename)' == 'AFR.Core'&#xD;&#xA;                              Or '%(Filename)' == 'AFR.UI'">
+        <LogicalName>%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'HandyControl'&#xD;&#xA;                                     Or '%(Filename)' == 'AFR.Core'&#xD;&#xA;                                     Or '%(Filename)' == 'AFR.UI'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

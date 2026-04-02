@@ -1,0 +1,254 @@
+using System.Collections.Concurrent;
+using System.Reflection;
+using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.Runtime;
+using AFR.Abstractions;
+using AFR.Platform;
+using AFR.Services;
+using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
+
+namespace AFR.Hosting;
+
+/// <summary>
+/// AutoCAD 插件入口基类，实现 IExtensionApplication。
+/// 负责初始化、事件注册和生命周期管理。
+/// 各版本适配壳继承此类，提供版本特定的平台实例。
+/// </summary>
+public abstract class PluginEntryBase : IExtensionApplication
+{
+    // 延迟执行队列：文档事件入队，等待 Idle 时统一处理
+    private static readonly Queue<(Document? Doc, string Trigger)> _pendingExecutions = new();
+    private static bool _idleHandlerRegistered;
+    private static volatile bool _unloaded;
+    private static readonly object _scheduleLock = new();
+    private static string _originalFontAlt = "simplex.shx";
+    private static string _originalFontMap = "";
+
+    // 缓存已解析的嵌入程序集
+    private static readonly ConcurrentDictionary<string, Assembly> _resolvedAssemblies = new();
+
+    // 插件主程序集引用 — 在 RegisterAssemblyResolve 时捕获
+    private static Assembly? _pluginAssembly;
+
+    // ── 子类必须实现 ──
+
+    /// <summary>创建当前 CAD 版本的平台常量。</summary>
+    protected abstract ICadPlatform CreatePlatform();
+
+    /// <summary>创建当前 CAD 版本的字体 Hook 实现。</summary>
+    protected abstract IFontHook CreateFontHook();
+
+    /// <summary>创建当前 CAD 版本的宿主能力实现。</summary>
+    protected abstract ICadHost CreateHost();
+
+    /// <summary>创建日志服务实现。默认返回 AutoCAD 命令行日志。</summary>
+    protected virtual ILogService CreateLogger() => LogService.Instance;
+
+    /// <summary>创建字体扫描器实现。默认返回 AutoCAD 字体扫描器。</summary>
+    protected virtual IFontScanner CreateFontScanner() => new AutoCadFontScanner();
+
+    // ── 嵌入程序集解析 ──
+
+    /// <summary>
+    /// 注册嵌入程序集解析。必须在派生类的静态构造函数中调用。
+    /// </summary>
+    protected static void RegisterAssemblyResolve()
+    {
+        _pluginAssembly = Assembly.GetCallingAssembly();
+        AppDomain.CurrentDomain.AssemblyResolve += OnResolveEmbeddedAssembly;
+    }
+
+    private static Assembly? OnResolveEmbeddedAssembly(object? sender, ResolveEventArgs args)
+    {
+        var assemblyName = new AssemblyName(args.Name).Name;
+        if (assemblyName == null) return null;
+
+        if (_resolvedAssemblies.TryGetValue(assemblyName, out var cached))
+            return cached;
+
+        var resourceName = assemblyName + ".dll";
+        // 从插件主程序集的嵌入资源中加载依赖
+        if (_pluginAssembly == null) return null;
+        using var stream = _pluginAssembly.GetManifestResourceStream(resourceName);
+        if (stream == null) return null;
+
+        var data = new byte[stream.Length];
+#if NET8_0_OR_GREATER
+        stream.ReadExactly(data);
+#else
+        int totalRead = 0;
+        while (totalRead < data.Length)
+        {
+            int read = stream.Read(data, totalRead, data.Length - totalRead);
+            if (read == 0) break;
+            totalRead += read;
+        }
+#endif
+        var assembly = Assembly.Load(data);
+        _resolvedAssemblies.TryAdd(assemblyName, assembly);
+        return assembly;
+    }
+
+    // ── IExtensionApplication ──
+
+    public void Initialize()
+    {
+        // 第负一阶段: 注册平台 — 必须最先执行
+        PlatformManager.Initialize(CreatePlatform(), CreateFontHook(), CreateHost(), CreateLogger(), CreateFontScanner());
+
+        var log = LogService.Instance;
+        try
+        {
+            // 第零阶段: 关闭 AutoCAD 原生字体替代机制
+            try
+            {
+                _originalFontAlt = (string)AcadApp.GetSystemVariable("FONTALT");
+                _originalFontMap = (string)AcadApp.GetSystemVariable("FONTMAP");
+                AcadApp.SetSystemVariable("FONTALT", ".");
+                AcadApp.SetSystemVariable("FONTMAP", "");
+            }
+            catch { }
+
+            // 第一阶段 A: 安装字体 Hook
+            if (PlatformManager.Platform.SupportsLdFileHook)
+                PlatformManager.FontHook.Install();
+
+            // 第零阶段 B: 预热系统字体索引
+            FontDetector.PrewarmSystemFonts();
+
+            // 第一阶段: 注册表初始化
+            bool isFirstRun = AppInitializer.Initialize();
+            if (isFirstRun)
+                log.Info("AFR 插件首次安装完成，请执行 AFR 命令配置替换字体。");
+
+            // 第二阶段: 注册文档事件
+            var docMgr = AcadApp.DocumentManager;
+            docMgr.DocumentCreated += OnDocumentCreated;
+            docMgr.DocumentToBeDestroyed += OnDocumentToBeDestroyed;
+
+            // 第三阶段: 延迟启动执行
+            _unloaded = false;
+            ScheduleExecution(null, "Startup");
+        }
+        catch (System.Exception ex)
+        {
+            log.Error("插件初始化失败", ex);
+            log.Flush();
+        }
+    }
+
+    public void Terminate()
+    {
+        try
+        {
+            AcadApp.SetSystemVariable("FONTALT", _originalFontAlt);
+            AcadApp.SetSystemVariable("FONTMAP", _originalFontMap);
+        }
+        catch { }
+
+        PlatformManager.FontHook.Uninstall();
+        UnregisterEvents();
+    }
+
+    /// <summary>
+    /// 卸载插件：注销所有事件、清空执行队列和文档跟踪。
+    /// 由 AFRUNLOAD 命令调用。
+    /// </summary>
+    internal static void Unload()
+    {
+        lock (_scheduleLock)
+        {
+            _unloaded = true;
+            UnregisterEvents();
+            _pendingExecutions.Clear();
+            if (_idleHandlerRegistered)
+            {
+                AcadApp.Idle -= OnDeferredIdle;
+                _idleHandlerRegistered = false;
+            }
+        }
+
+        try
+        {
+            AcadApp.SetSystemVariable("FONTALT", _originalFontAlt);
+            AcadApp.SetSystemVariable("FONTMAP", _originalFontMap);
+        }
+        catch { }
+
+        PlatformManager.FontHook.Uninstall();
+        DocumentContextManager.Instance.Clear();
+    }
+
+    // ── 事件与调度 ──
+
+    private static void UnregisterEvents()
+    {
+        try
+        {
+            var docMgr = AcadApp.DocumentManager;
+            docMgr.DocumentCreated -= OnDocumentCreated;
+            docMgr.DocumentToBeDestroyed -= OnDocumentToBeDestroyed;
+        }
+        catch { }
+    }
+
+    private static void ScheduleExecution(Document? doc, string trigger)
+    {
+        lock (_scheduleLock)
+        {
+            if (_unloaded) return;
+            _pendingExecutions.Enqueue((doc, trigger));
+            if (!_idleHandlerRegistered)
+            {
+                _idleHandlerRegistered = true;
+                AcadApp.Idle += OnDeferredIdle;
+            }
+        }
+    }
+
+    private static void OnDeferredIdle(object? sender, System.EventArgs e)
+    {
+        (Document? Doc, string Trigger)[] pending;
+        lock (_scheduleLock)
+        {
+            AcadApp.Idle -= OnDeferredIdle;
+            _idleHandlerRegistered = false;
+            if (_unloaded || _pendingExecutions.Count == 0) return;
+            pending = _pendingExecutions.ToArray();
+            _pendingExecutions.Clear();
+        }
+
+        for (int i = 0; i < pending.Length; i++)
+        {
+            var (doc, trigger) = pending[i];
+            doc ??= AcadApp.DocumentManager.MdiActiveDocument;
+            if (doc == null || doc.IsDisposed) continue;
+
+            try
+            {
+                ExecutionController.Instance.Execute(doc, trigger);
+            }
+            catch (System.Exception ex)
+            {
+                LogService.Instance.Error($"{trigger} 延迟执行失败", ex);
+                LogService.Instance.Flush();
+            }
+        }
+    }
+
+    private static void OnDocumentCreated(object sender, DocumentCollectionEventArgs e)
+    {
+        if (e.Document != null)
+            ScheduleExecution(e.Document, "DocumentCreated");
+    }
+
+    private static void OnDocumentToBeDestroyed(object sender, DocumentCollectionEventArgs e)
+    {
+        try
+        {
+            if (e.Document != null)
+                DocumentContextManager.Instance.Remove(e.Document);
+        }
+        catch { }
+    }
+}

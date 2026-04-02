@@ -1,3 +1,10 @@
 <Solution>
-  <Project Path="AFR-ACAD2026/AFR-ACAD2026.csproj" />
+  <Folder Name="/Core/">
+    <Project Path="src/AFR.Core/AFR.Core.csproj" />
+    <Project Path="src/AFR.UI/AFR.UI.csproj" />
+  </Folder>
+  <Folder Name="/AutoCAD/">
+    <Project Path="src/AutoCAD/AFR.AutoCAD/AFR.AutoCAD.shproj" />
+    <Project Path="src/AutoCAD/AFR-ACAD2026/AFR-ACAD2026.csproj" />
+  </Folder>
 </Solution>
