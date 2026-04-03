@@ -1,7 +1,6 @@
 using Autodesk.AutoCAD.ApplicationServices;
 using AFR.FontMapping;
 using AFR.Models;
-using AFR.Platform;
 using AFR.Services;
 
 namespace AFR.Hosting;
@@ -64,19 +63,12 @@ internal sealed class ExecutionController
 
                 doc.Editor.Regen();
 
-                // 第三阶段: 收集 Hook 重定向记录（过滤样式表缺失字体，仅保留 MText 内联字体）
-                // 排除集仅包含样式表中确认缺失的字体（由 FontReplacer 处理），
-                // 不排除存在的字体，避免误过滤 MText 内联字体（如 @gbcbig → gbcbig）。
-                var styleMissingFonts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                for (int i = 0; i < missingFonts.Count; i++)
-                {
-                    var f = missingFonts[i];
-                    if (f.IsMainFontMissing && !string.IsNullOrEmpty(f.FileName))
-                        styleMissingFonts.Add(f.FileName);
-                    if (f.IsBigFontMissing && !string.IsNullOrEmpty(f.BigFontFileName))
-                        styleMissingFonts.Add(f.BigFontFileName);
-                }
-                var inlineFixResults = PlatformManager.FontHook.GetRedirectRecords(styleMissingFonts);
+                // 第三阶段: 扫描 MText 内联字体，交叉比对 Hook 重定向记录
+                // 正向扫描法: 解析 MText.Contents 中的 \F/\f 格式代码，
+                // 与 Hook 重定向记录交叉比对，精确识别被修复的内联字体。
+                var inlineFonts = MTextInlineFontScanner.ScanInlineFonts(doc.Database);
+                var redirectLog = LdFileHook.GetRawRedirectLog();
+                var inlineFixResults = BuildInlineFixRecords(inlineFonts, redirectLog);
                 contextMgr.StoreInlineFontFixResults(doc, inlineFixResults);
 
                 // 添加统计汇总
@@ -93,5 +85,41 @@ internal sealed class ExecutionController
         {
             log.Flush();
         }
+    }
+
+    /// <summary>
+    /// 交叉比对 MText 内联字体引用与 Hook 重定向记录，
+    /// 构建精确的内联字体修复记录。
+    /// 仅返回同时满足以下条件的记录:
+    ///   1. 在 MText 内联字体引用中出现（正向识别）
+    ///   2. 在 Hook 重定向记录中存在（确认被修复）
+    /// </summary>
+    private static List<InlineFontFixRecord> BuildInlineFixRecords(
+        Dictionary<string, InlineFontType> inlineFonts,
+        IReadOnlyDictionary<string, (string Replacement, int FontType)> redirectLog)
+    {
+        var records = new List<InlineFontFixRecord>();
+
+        foreach (var (fontName, inlineType) in inlineFonts)
+        {
+            // 归一化: redirect log 的 key 是 "name.shx" 小写格式
+            string lookupKey = fontName.EndsWith(".shx", StringComparison.OrdinalIgnoreCase)
+                ? fontName.ToLowerInvariant()
+                : fontName;
+
+            if (!redirectLog.TryGetValue(lookupKey, out var redirect))
+                continue;
+
+            string category = inlineType switch
+            {
+                InlineFontType.ShxBigFont => "SHX大字体",
+                InlineFontType.TrueType => "TrueType",
+                _ => "SHX主字体"
+            };
+
+            records.Add(new InlineFontFixRecord(fontName, redirect.Replacement, "MText内联", category));
+        }
+
+        return records;
     }
 }

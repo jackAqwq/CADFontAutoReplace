@@ -1,5 +1,3 @@
-using AFR.Models;
-
 namespace AFR.Abstractions;
 
 /// <summary>
@@ -12,5 +10,4 @@ public interface IFontHook
     void Install();
     void Uninstall();
     void UpdateConfig();
-    List<InlineFontFixRecord> GetRedirectRecords(HashSet<string>? styleTableFontNames = null);
 }

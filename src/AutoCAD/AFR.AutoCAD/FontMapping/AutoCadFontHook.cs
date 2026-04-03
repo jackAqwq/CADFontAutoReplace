@@ -1,5 +1,4 @@
 using AFR.Abstractions;
-using AFR.Models;
 
 namespace AFR.FontMapping;
 
@@ -16,7 +15,4 @@ internal sealed class AutoCadFontHook : IFontHook
     public void Uninstall() => LdFileHook.Uninstall();
 
     public void UpdateConfig() => LdFileHook.UpdateConfig();
-
-    public List<InlineFontFixRecord> GetRedirectRecords(HashSet<string>? styleTableFontNames = null)
-        => LdFileHook.GetRedirectRecords(styleTableFontNames);
 }

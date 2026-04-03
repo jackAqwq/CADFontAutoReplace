@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
-using AFR.Models;
 using AFR.Platform;
 using AFR.Services;
 
@@ -164,41 +163,12 @@ internal static class LdFileHook
     }
 
     /// <summary>
-    /// 获取本次会话的重定向记录，过滤掉样式表字体（供 AFRLOG 显示）。
-    /// 样式表字体已由 FontReplacer 处理，用户可通过 ST/AFRLOG 调整，
-    /// 此处仅返回样式表之外的重定向（即 MText 内联字体）。
+    /// 获取本次会话的原始重定向记录（供 MText 内联字体交叉比对）。
+    /// Key: 归一化字体名（小写，含 .shx 后缀）
+    /// Value: (替换字体, ldfile param2 字体类型)
     /// </summary>
-    internal static List<InlineFontFixRecord> GetRedirectRecords(HashSet<string>? styleTableFontNames = null)
-    {
-        // 构建样式表排除集（规范化）
-        HashSet<string>? exclude = null;
-        if (styleTableFontNames is { Count: > 0 })
-        {
-            exclude = new(StringComparer.OrdinalIgnoreCase);
-            foreach (string name in styleTableFontNames)
-            {
-                exclude.Add(EnsureShx(name).ToLowerInvariant());
-                string noExt = Path.GetFileNameWithoutExtension(name).ToLowerInvariant();
-                if (!string.IsNullOrEmpty(noExt))
-                    exclude.Add(noExt);
-            }
-        }
-
-        var records = new List<InlineFontFixRecord>();
-        foreach (var (missing, (replacement, fontType)) in _redirectLog)
-        {
-            // 过滤样式表缺失字体（精确匹配，不剥离 @ 前缀）
-            if (exclude != null && exclude.Contains(missing))
-                continue;
-
-            string category = missing.StartsWith('@') ? "SHX大字体"
-                : IsTrueTypeName(missing) ? "TrueType"
-                : fontType == FontTypeBigFont ? "SHX大字体"
-                : "SHX主字体";
-            records.Add(new(missing, replacement, "MText映射", category));
-        }
-        return records;
-    }
+    internal static IReadOnlyDictionary<string, (string Replacement, int FontType)> GetRawRedirectLog()
+        => _redirectLog;
 
     #region Hook Handler
 
