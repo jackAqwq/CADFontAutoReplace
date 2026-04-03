@@ -1,3 +1,4 @@
+using System.IO;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.GraphicsInterface;
 using AFR.Models;
@@ -177,6 +178,82 @@ internal static class FontReplacer
 
         tr.Commit();
         return replaceCount;
+    }
+
+    /// <summary>
+    /// 清理样式表中"TrueType 可用但 SHX 缺失"的残留引用。
+    /// 当样式同时有 TypeFace（已安装 TrueType）和 FileName（缺失 SHX）时，
+    /// AutoCAD 使用 TrueType 渲染，SHX 引用实际无用。
+    /// 但 Hook 会在加载阶段重定向缺失 SHX → 内部缓存与 DWG 不一致 → ST "已修改"弹窗。
+    /// 清除 FileName 可消除不一致，同时不影响渲染（TrueType 仍可用）。
+    /// </summary>
+    public static int CleanupStaleShxReferences(Database db)
+    {
+        var log = LogService.Instance;
+        int cleaned = 0;
+
+        using var tr = db.TransactionManager.StartTransaction();
+        var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
+
+        foreach (ObjectId id in styleTable)
+        {
+            try
+            {
+                var style = (TextStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
+                var font = style.Font;
+
+                // 仅处理有 TrueType 字族名的样式
+                if (string.IsNullOrEmpty(font.TypeFace)) continue;
+
+                // TrueType 必须已安装
+                if (!FontDetector.IsSystemFont(font.TypeFace)) continue;
+
+                var fileName = style.FileName ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(fileName)) continue;
+
+                // FileName 是 TrueType 文件 → 不需要清理
+                if (fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
+                    fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // 检查 SHX 是否存在
+                bool shxExists;
+                try
+                {
+                    string result = HostApplicationServices.Current.FindFile(fileName, db, FindFileHint.CompiledShapeFile);
+                    shxExists = !string.IsNullOrEmpty(result);
+                }
+                catch { shxExists = false; }
+
+                if (!shxExists)
+                {
+                    // 不带扩展名时再尝试 +.shx
+                    if (!Path.HasExtension(fileName))
+                    {
+                        try
+                        {
+                            string result = HostApplicationServices.Current.FindFile(fileName + ".shx", db, FindFileHint.CompiledShapeFile);
+                            shxExists = !string.IsNullOrEmpty(result);
+                        }
+                        catch { shxExists = false; }
+                    }
+                }
+
+                if (shxExists) continue; // SHX 存在，无需清理
+
+                // TrueType 可用 + SHX 缺失 → 清除残留 SHX 引用
+                style.UpgradeOpen();
+                log.Info($"[清理] 样式='{style.Name}' TrueType='{font.TypeFace}' 清除残留 FileName='{fileName}' BigFont='{style.BigFontFileName}'");
+                style.FileName = string.Empty;
+                style.BigFontFileName = string.Empty;
+                cleaned++;
+            }
+            catch { }
+        }
+
+        tr.Commit();
+        return cleaned;
     }
 
     }

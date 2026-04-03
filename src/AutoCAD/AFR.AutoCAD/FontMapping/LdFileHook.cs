@@ -216,9 +216,16 @@ internal static class LdFileHook
                 return _trampolineDelegate(fileName, param2, db, desc);
 
             // 字体缺失 → 按字体类型选择替换策略
-            // .shx 后缀 → SHX 字体，用 MainFont/BigFont 替换
-            // 非 .shx → TrueType 字族名（样式表回退或内联 \f），用 TrueTypeFont 替换
+            // 常规 SHX 主字体（param2=1, .shx）→ 由 FONTALT 原生机制处理，不通过 Hook
+            //   原因: Hook 的 native 级别重定向会干扰块参照的字体缓存渲染
+            // SHX 大字体（param2=0, .shx）→ Hook 处理（FONTALT 不区分大/主字体）
+            // TrueType（非 .shx）→ Hook 处理（FONTALT 不处理 TrueType）
             bool isShxRequest = fontName.EndsWith(".shx", StringComparison.OrdinalIgnoreCase);
+
+            // 常规 SHX 主字体 → 放行，由 FONTALT 处理
+            if (isShxRequest && param2 == FontTypeRegular)
+                return _trampolineDelegate(fileName, param2, db, desc);
+
             string? resolved = isShxRequest
                 ? ResolveMissingShxFont(fontName, param2)
                 : ResolveMissingTrueTypeFont(fontName);

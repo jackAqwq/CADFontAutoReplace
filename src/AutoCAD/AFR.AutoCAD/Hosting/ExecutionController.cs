@@ -59,12 +59,20 @@ internal sealed class ExecutionController
                     return;
                 }
 
-                // 第二阶段: 替换缺失字体 + Regen 刷新显示
+                // 第二阶段: 替换缺失字体 + 清理残留引用 + Regen 刷新显示
                 FontReplacer.ReplaceMissingFonts(
                     doc.Database, missingFonts, config.MainFont, config.BigFont, config.TrueTypeFont);
 
+                // 清理"TrueType 可用 + SHX 缺失"的样式残留引用
+                // 防止 Hook 重定向缺失 SHX 导致内部状态与 DWG 不一致
+                FontReplacer.CleanupStaleShxReferences(doc.Database);
+
                 // 诊断: Regen 前验证样式表状态（确认替换是否持久化到数据库）
                 VerifyStyleTableAfterReplace(doc.Database, missingFonts, log);
+
+                // 字体替换后，块参照的缓存图形可能仍使用旧字体渲染。
+                // 必须将所有块表记录标记为图形已修改，Regen 才会强制刷新块参照显示。
+                InvalidateBlockGraphics(doc.Database);
 
                 doc.Editor.Regen();
 
@@ -148,10 +156,16 @@ internal sealed class ExecutionController
                 try
                 {
                     var style = (TextStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
-                    if (!missingNames.Contains(style.Name)) continue;
-
                     var font = style.Font;
-                    log.Info($"[验证] 样式='{style.Name}' TypeFace='{font.TypeFace}' FileName='{style.FileName}' BigFont='{style.BigFontFileName}' CharSet={font.CharacterSet} Pitch={font.PitchAndFamily}");
+                    bool isMissing = missingNames.Contains(style.Name);
+                    bool isXref = style.Name.Contains("$0$");
+
+                    // 输出被替换的样式 + 所有外参样式（排查块内乱码）
+                    if (isMissing || isXref)
+                    {
+                        string tag = isMissing ? "[已替换]" : "[未替换]";
+                        log.Info($"{tag} 样式='{style.Name}' TypeFace='{font.TypeFace}' FileName='{style.FileName}' BigFont='{style.BigFontFileName}' CharSet={font.CharacterSet} Pitch={font.PitchAndFamily}");
+                    }
                 }
                 catch { }
             }
@@ -162,5 +176,42 @@ internal sealed class ExecutionController
         {
             log.Warning($"[验证] 读回样式表失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 将所有块表记录标记为图形已修改，强制 Regen 刷新块参照的缓存显示。
+    /// 字体替换修改了样式表，但块参照的渲染缓存仍使用旧字体，
+    /// 不标记则 Regen 不会重新生成块参照内的文字图形。
+    /// </summary>
+    private static void InvalidateBlockGraphics(Database db)
+    {
+        try
+        {
+            using var tr = db.TransactionManager.StartTransaction();
+            var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+
+            foreach (ObjectId btrId in bt)
+            {
+                try
+                {
+                    var btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
+                    // 获取引用此块定义的所有块参照，标记图形已修改
+                    var refIds = btr.GetBlockReferenceIds(true, false);
+                    foreach (ObjectId refId in refIds)
+                    {
+                        try
+                        {
+                            var blkRef = (BlockReference)tr.GetObject(refId, OpenMode.ForWrite);
+                            blkRef.RecordGraphicsModified(true);
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+
+            tr.Commit();
+        }
+        catch { }
     }
 }
