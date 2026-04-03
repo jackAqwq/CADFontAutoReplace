@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO;
+using System.Runtime.InteropServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.GraphicsInterface;
 using System.Windows.Media;
@@ -351,4 +352,101 @@ internal static class FontDetector
         }
         return names;
     }
+
+    #region TrueType 字体特征查询
+
+    // 缓存: fontName → (charset, pitchAndFamily)
+    private static readonly ConcurrentDictionary<string, (int CharacterSet, int PitchAndFamily)>
+        _fontMetricsCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 查询 TrueType 字体的 CharacterSet 和 PitchAndFamily（LOGFONT 兼容值）。
+    /// 这些值必须与 FontDescriptor 匹配，否则 AutoCAD 会"修正"内部状态，
+    /// 导致 ST 弹出"该样式已修改"弹窗，且可能用错误的字符集渲染文字。
+    /// </summary>
+    public static (int CharacterSet, int PitchAndFamily) GetTrueTypeFontMetrics(string fontName)
+    {
+        if (string.IsNullOrEmpty(fontName))
+            return (0, 0);
+
+        if (_fontMetricsCache.TryGetValue(fontName, out var cached))
+            return cached;
+
+        var result = QueryFontMetricsFromGdi(fontName);
+        _fontMetricsCache.TryAdd(fontName, result);
+        return result;
+    }
+
+    private static (int CharacterSet, int PitchAndFamily) QueryFontMetricsFromGdi(string fontName)
+    {
+        IntPtr hdc = IntPtr.Zero;
+        IntPtr hFont = IntPtr.Zero;
+        IntPtr oldFont = IntPtr.Zero;
+
+        try
+        {
+            hdc = GetDC(IntPtr.Zero);
+            if (hdc == IntPtr.Zero) return (0, 0);
+
+            hFont = CreateFontW(
+                0, 0, 0, 0, 0, 0, 0, 0,
+                1 /* DEFAULT_CHARSET */,
+                0, 0, 0, 0, fontName);
+            if (hFont == IntPtr.Zero) return (0, 0);
+
+            oldFont = SelectObject(hdc, hFont);
+
+            if (GetTextMetricsW(hdc, out var tm))
+                return (tm.tmCharSet, tm.tmPitchAndFamily);
+
+            return (0, 0);
+        }
+        catch
+        {
+            return (0, 0);
+        }
+        finally
+        {
+            if (oldFont != IntPtr.Zero && hdc != IntPtr.Zero)
+                SelectObject(hdc, oldFont);
+            if (hFont != IntPtr.Zero)
+                DeleteObject(hFont);
+            if (hdc != IntPtr.Zero)
+                ReleaseDC(IntPtr.Zero, hdc);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TEXTMETRICW
+    {
+        public int tmHeight, tmAscent, tmDescent, tmInternalLeading, tmExternalLeading;
+        public int tmAveCharWidth, tmMaxCharWidth, tmWeight, tmOverhang;
+        public int tmDigitizedAspectX, tmDigitizedAspectY;
+        public char tmFirstChar, tmLastChar, tmDefaultChar, tmBreakChar;
+        public byte tmItalic, tmUnderlined, tmStruckOut, tmPitchAndFamily, tmCharSet;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateFontW(
+        int cHeight, int cWidth, int cEscapement, int cOrientation, int cWeight,
+        uint bItalic, uint bUnderline, uint bStrikeOut, uint iCharSet,
+        uint iOutPrecision, uint iClipPrecision, uint iQuality,
+        uint iPitchAndFamily, string pszFaceName);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr SelectObject(IntPtr hdc, IntPtr h);
+
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool GetTextMetricsW(IntPtr hdc, out TEXTMETRICW lptm);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr ho);
+
+    #endregion
 }

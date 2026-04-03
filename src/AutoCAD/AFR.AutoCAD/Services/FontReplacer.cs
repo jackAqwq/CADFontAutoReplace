@@ -55,11 +55,11 @@ internal static class FontReplacer
                         // TrueType 只用 TrueType 字体替换
                         if (!string.IsNullOrEmpty(trueTypeFont))
                         {
-                            // CharacterSet=0, PitchAndFamily=0 使用默认值，
-                            // AutoCAD 加载时不会"修正"默认值，避免内部状态与 DWG 不一致。
-                            // 注意: 不能保留原字体的值 — 不同字体的 PitchAndFamily 不同，
-                            // 保留会导致 AutoCAD 每次加载都"修正"为实际值，触发 ST "已修改"弹窗。
-                            style.Font = new FontDescriptor(trueTypeFont, false, false, 0, 0);
+                            // 必须使用替换字体的实际 CharacterSet 和 PitchAndFamily，
+                            // 否则 AutoCAD 加载时会"修正"为实际值，触发 ST "已修改"弹窗，
+                            // 且 CharacterSet 不匹配会导致文字用错误的字符集编码渲染（显示问号）。
+                            var (charset, pitch) = FontDetector.GetTrueTypeFontMetrics(trueTypeFont);
+                            style.Font = new FontDescriptor(trueTypeFont, false, false, charset, pitch);
                             style.FileName = string.Empty;
                             // TrueType 样式不支持大字体，清空避免残留
                             style.BigFontFileName = string.Empty;
