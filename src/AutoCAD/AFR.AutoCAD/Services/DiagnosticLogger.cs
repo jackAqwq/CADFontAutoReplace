@@ -81,6 +81,7 @@ internal static class DiagnosticLogger
         WriteRaw($"[配置] MainFont='{mainFont}' BigFont='{bigFont}' TrueType='{trueTypeFont}'");
         WriteRaw("");
         ResetCounters();
+        _sessionTimer?.Restart();
     }
 
     /// <summary>标记阶段开始，自动开始计时。</summary>

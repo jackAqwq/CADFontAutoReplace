@@ -112,6 +112,10 @@ internal static class FontReplacer
 
                             changed = true;
                         }
+                        else
+                        {
+                            DiagnosticLogger.LogSkipped(style.Name, "TrueType替换字体不可用");
+                        }
                     }
                     else
                     {
@@ -133,6 +137,10 @@ internal static class FontReplacer
                                 missing.BigFontFileName, bigFontValid ? bigFont ?? "" : "");
 
                             changed = true;
+                        }
+                        else
+                        {
+                            DiagnosticLogger.LogSkipped(style.Name, "SHX替换字体不可用");
                         }
                     }
                 }

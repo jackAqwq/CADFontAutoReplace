@@ -54,13 +54,19 @@ internal static class FontDetector
                 bool hasTT = safeFont.HasValue && !string.IsNullOrEmpty(safeFont.Value.TypeFace);
                 bool hasFile = !string.IsNullOrWhiteSpace(fileName);
 
+                // FileName 为 TrueType 文件时，该样式仍属于 TrueType（AutoCAD 常同时写入 TypeFace 和 .ttf FileName）
+                bool fileIsTrueType = hasFile &&
+                    (fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
+                     fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
+                bool isTrueType = hasTT && (!hasFile || fileIsTrueType);
+
                 DiagnosticLogger.LogStyleScan(styleName, fileName, bigFontName,
                     safeFont.HasValue ? (safeFont.Value.TypeFace ?? "") : "<损坏>",
-                    hasTT && !hasFile, style.IsShapeFile);
+                    isTrueType, style.IsShapeFile);
 
-                // 纯 TrueType 样式（无 SHX FileName）: 验证字体可用且 GDI 度量有效才跳过
-                // 仅文件存在不足以判定可用 — 损坏字体或错误字符集仍需标记为缺失
-                if (hasTT && !hasFile)
+                // TrueType 样式: 验证字体可用且 GDI 度量有效才跳过
+                if (isTrueType)
                 {
                     var typeFace = safeFont!.Value.TypeFace!;
                     if (IsTrueTypeFontAvailable(typeFace, fileName, context))
@@ -72,7 +78,6 @@ internal static class FontDetector
                             continue;
                     }
                 }
-                bool isTrueType = hasTT && !hasFile;
                 bool isMainMissing = false;
                 bool isBigMissing = false;
                 if (isTrueType)
@@ -154,6 +159,17 @@ internal static class FontDetector
         }
         if (TryFindFile(typeface + ".ttf", context, FindFileHint.TrueTypeFontFile)) return true;
         if (TryFindFile(typeface + ".ttc", context, FindFileHint.TrueTypeFontFile)) return true;
+
+        // 本地化名称反查: 通过 WPF 字体家族匹配本地名称（如 "宋体" → "SimSun"）
+        try
+        {
+            var family = System.Windows.Media.Fonts.SystemFontFamilies
+                .FirstOrDefault(f => f.FamilyNames.Values.Any(
+                    n => string.Equals(n, typeface, StringComparison.OrdinalIgnoreCase)));
+            if (family != null) return true;
+        }
+        catch { }
+
         return false;
     }
 
