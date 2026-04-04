@@ -86,11 +86,17 @@ internal static class FontDetector
                 var bigFontName = style.BigFontFileName ?? string.Empty;
                 var font = style.Font;
 
-                // TrueType 字体可用性优先检查:
-                // 当 TypeFace 指定的 TrueType 字体已安装时，AutoCAD 优先使用 TrueType 渲染，
-                // 即使 FileName 指向的 SHX 文件缺失也不影响显示。
-                // 此时不应将样式报告为缺失，否则 FontReplacer 会用 SHX 覆盖 TrueType → 乱码。
+                // 判断 FileName 是否指向 SHX 文件（非 TrueType 文件格式）
+                bool fileNameIsSHX = !string.IsNullOrWhiteSpace(fileName)
+                    && !fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
+                    && !fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase)
+                    && !fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
+
+                // TrueType 字体可用性检查:
+                // 纯 TrueType（TypeFace 有效，无 SHX 引用）→ 跳过检测
+                // 混合状态（TypeFace + SHX FileName 共存）→ 脏数据，必须进入检测
                 if (!string.IsNullOrEmpty(font.TypeFace)
+                    && !fileNameIsSHX
                     && IsTrueTypeFontAvailable(font.TypeFace, fileName, db))
                 {
                     continue;
@@ -98,13 +104,7 @@ internal static class FontDetector
 
                 // 判断样式类型：SHX 还是 TrueType
                 // 规则：TypeFace 非空 且 FileName 不是 SHX 格式 → TrueType
-                //       其他情况 → SHX
-                // 当 TypeFace 和 FileName 同时有值时（DWG 数据不一致），FileName 优先。
-                // 此时 TrueType 已确认不可用（上方检查已排除），按 SHX 处理更安全。
-                bool fileNameIsSHX = !string.IsNullOrWhiteSpace(fileName)
-                    && !fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
-                    && !fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase)
-                    && !fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
+                //       其他情况（含混合状态）→ 按 SHX 处理
                 bool isTrueType = !string.IsNullOrEmpty(font.TypeFace) && !fileNameIsSHX;
                 bool isMainMissing = false;
                 bool isBigMissing = false;
