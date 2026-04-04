@@ -152,7 +152,7 @@ internal sealed class ExecutionController
                     var style = (TextStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
                     var font = style.Font;
                     bool isMissing = missingNames.Contains(style.Name);
-                    bool isXref = style.Name.Contains("$0$");
+                    bool isXref = style.IsDependent;
 
                     // 输出被替换的样式 + 所有外参样式（排查块内乱码）
                     if (isMissing || isXref)
