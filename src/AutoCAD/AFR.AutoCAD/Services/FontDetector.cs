@@ -53,8 +53,18 @@ internal static class FontDetector
 
                 bool hasTT = safeFont.HasValue && !string.IsNullOrEmpty(safeFont.Value.TypeFace);
                 bool hasFile = !string.IsNullOrWhiteSpace(fileName);
-                if (hasTT && !hasFile && IsTrueTypeFontAvailable(safeFont!.Value.TypeFace, fileName, context))
-                    continue;
+
+                // 纯 TrueType 样式（无 SHX FileName）: 验证字体可用且 GDI 度量有效才跳过
+                // 仅文件存在不足以判定可用 — 损坏字体或错误字符集仍需标记为缺失
+                if (hasTT && !hasFile)
+                {
+                    if (IsTrueTypeFontAvailable(safeFont!.Value.TypeFace, fileName, context))
+                    {
+                        var metrics = GetTrueTypeFontMetrics(safeFont.Value.TypeFace, context);
+                        if (metrics.CharacterSet != 0)
+                            continue;
+                    }
+                }
                 bool isTrueType = hasTT && !hasFile;
                 bool isMainMissing = false;
                 bool isBigMissing = false;
