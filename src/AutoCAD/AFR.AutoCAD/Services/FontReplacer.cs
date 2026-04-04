@@ -28,9 +28,6 @@ internal static class FontReplacer
         var log = LogService.Instance;
         int replaceCount = 0;
 
-        // 清除缓存，确保在当前图纸上下文中重新验证字体可用性
-        FontDetector.ClearCaches();
-
         // 预校验替换字体是否可用，避免将样式写成不可用字体
         bool mainFontValid = !string.IsNullOrEmpty(mainFont)
             && FontDetector.IsShxFontAvailable(mainFont, db);
@@ -242,9 +239,6 @@ internal static class FontReplacer
             return 0;
         }
 
-        // 清除缓存，确保在当前图纸上下文中重新验证
-        FontDetector.ClearCaches();
-
         using var tr = db.TransactionManager.StartTransaction();
         var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
 
@@ -283,7 +277,10 @@ internal static class FontReplacer
                 style.BigFontFileName = string.Empty;
                 cleaned++;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                log.Warning($"[清理] 处理样式 {id} 时出错: {ex.Message}");
+            }
         }
 
         tr.Commit();

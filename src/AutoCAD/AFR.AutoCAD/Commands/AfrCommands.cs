@@ -69,6 +69,7 @@ public class AfrCommands
     /// <summary>
     /// AFRLOG 命令: 打开字体替换日志界面。
     /// 显示缺失字体检测结果，支持手动逐一指定替换字体（仅影响当前图纸，不写入注册表）。
+    /// 每次打开时重新检测，反映 ST 命令等外部修改后的最新状态。
     /// </summary>
     [CommandMethod("AFRLOG")]
     public void AfrLogCommand()
@@ -83,19 +84,21 @@ public class AfrCommands
                 return;
             }
 
-            // 优先使用已存储的检测结果，否则重新检测
-            var results = DocumentContextManager.Instance.GetDetectionResults(doc);
+            List<FontCheckResult>? results;
             Dictionary<string, (string FileName, string BigFontFileName, string TypeFace)>? currentFonts = null;
 
             using (doc.LockDocument())
             {
-                if (results == null || results.Count == 0)
-                {
-                    results = FontDetector.DetectMissingFonts(doc.Database);
-                }
+                // 始终从数据库重新检测缺失字体
+                // 用户可能通过 ST 命令手工修改了字体，缓存的检测结果已过时
+                FontDetector.ClearCaches();
+                results = FontDetector.DetectMissingFonts(doc.Database);
+
+                // 更新存储的检测结果，保持一致性
+                DocumentContextManager.Instance.StoreDetectionResults(doc, results);
 
                 // 读取图纸中各样式的当前实际字体（反映手动替换/ST命令修改后的状态）
-                if (results != null && results.Count > 0)
+                if (results.Count > 0)
                 {
                     currentFonts = FontDetector.ReadCurrentFontAssignments(doc.Database);
                 }

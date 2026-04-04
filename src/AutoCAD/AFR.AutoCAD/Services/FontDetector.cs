@@ -73,9 +73,6 @@ internal static class FontDetector
     {
         var results = new List<FontCheckResult>();
 
-        // 清除缓存，确保在当前图纸上下文中重新检测
-        ClearCaches();
-
         using var tr = db.TransactionManager.StartTransaction();
         var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
 
@@ -423,6 +420,14 @@ internal static class FontDetector
             return cached;
 
         var result = QueryFontMetricsFromGdi(fontName);
+
+        // (0,0) 表示 GDI 查询失败，不缓存以允许下次重试
+        if (result.CharacterSet == 0 && result.PitchAndFamily == 0)
+        {
+            LogService.Instance.Warning($"[FontMetrics] '{fontName}' GDI 查询失败，返回默认值 (0,0)，未缓存");
+            return result;
+        }
+
         _fontMetricsCache.TryAdd(fontName, result);
         LogService.Instance.Info($"[FontMetrics] '{fontName}' → CharacterSet={result.CharacterSet} PitchAndFamily={result.PitchAndFamily}");
         return result;

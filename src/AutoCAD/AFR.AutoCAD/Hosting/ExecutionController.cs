@@ -45,6 +45,10 @@ internal sealed class ExecutionController
             // 获取文档写入锁
             using (doc.LockDocument())
             {
+                // 清除字体查找缓存，确保在当前图纸上下文中重新检测
+                // 统一管理缓存生命周期：一次 Execute 周期内检测→替换共享同一份缓存
+                FontDetector.ClearCaches();
+
                 // 第一阶段: 检测缺失字体（样式表原始状态）
                 var missingFonts = FontDetector.DetectMissingFonts(doc.Database);
 
@@ -58,13 +62,13 @@ internal sealed class ExecutionController
                     return;
                 }
 
-                // 第二阶段: 替换缺失字体 + 清理残留引用 + Regen 刷新显示
+                // 第二阶段: 替换缺失字体 + Regen 刷新显示
                 FontReplacer.ReplaceMissingFonts(
                     doc.Database, missingFonts, config.MainFont, config.BigFont, config.TrueTypeFont);
 
-                // 清理"TrueType 可用 + SHX 缺失"的样式残留引用
-                // 防止 Hook 重定向缺失 SHX 导致内部状态与 DWG 不一致
-                FontReplacer.CleanupStaleShxReferences(doc.Database);
+                // CleanupStaleShxReferences 仅在 Hook 启用时需要（防止 Hook 重定向导致内部状态不一致）
+                // 当前 Hook 已禁用，跳过清理以避免破坏性地删除原始 SHX 备用引用
+                // FontReplacer.CleanupStaleShxReferences(doc.Database);
 
                 // 诊断: Regen 前验证样式表状态（确认替换是否持久化到数据库）
                 VerifyStyleTableAfterReplace(doc.Database, missingFonts, log);
