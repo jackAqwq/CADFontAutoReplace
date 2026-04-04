@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
@@ -21,6 +21,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Hosting\PluginEntryBase.cs" Link="Hosting\PluginEntryBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Commands\MTextEditorCommand.cs" Link="Commands\MTextEditorCommand.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\AutoCadFontScanner.cs" Link="Services\AutoCadFontScanner.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Services\FontDetectionContext.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\FontDetector.cs" Link="Services\FontDetector.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\FontReplacer.cs" Link="Services\FontReplacer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\LogService.cs" Link="Services\LogService.cs" />

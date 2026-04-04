@@ -89,10 +89,12 @@ public class AfrCommands
 
             using (doc.LockDocument())
             {
+                // 创建独立的执行上下文 — 每次 AFRLOG 命令使用全新缓存
+                var context = new FontDetectionContext(doc.Database);
+
                 // 始终从数据库重新检测缺失字体
                 // 用户可能通过 ST 命令手工修改了字体，缓存的检测结果已过时
-                FontDetector.ClearCaches();
-                results = FontDetector.DetectMissingFonts(doc.Database);
+                results = FontDetector.DetectMissingFonts(context);
 
                 // 更新存储的检测结果，保持一致性
                 DocumentContextManager.Instance.StoreDetectionResults(doc, results);
@@ -114,7 +116,9 @@ public class AfrCommands
             {
                 using (doc.LockDocument())
                 {
-                    int count = FontReplacer.ReplaceByStyleMapping(doc.Database, replacements);
+                    // 手动替换也使用独立上下文
+                    var replaceContext = new FontDetectionContext(doc.Database);
+                    int count = FontReplacer.ReplaceByStyleMapping(replacements, replaceContext);
                     if (count > 0) doc.Editor.Regen();
                     return count;
                 }

@@ -3,6 +3,7 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.GraphicsInterface;
 using AFR.Models;
 
+
 namespace AFR.Services;
 
 /// <summary>
@@ -17,11 +18,11 @@ internal static class FontReplacer
     /// 返回被修改的样式数量。
     /// </summary>
     public static int ReplaceMissingFonts(
-        Database db,
         IReadOnlyList<FontCheckResult> missingFonts,
         string mainFont,
         string bigFont,
-        string trueTypeFont)
+        string trueTypeFont,
+        FontDetectionContext context)
     {
         if (missingFonts.Count == 0) return 0;
 
@@ -30,11 +31,11 @@ internal static class FontReplacer
 
         // 预校验替换字体是否可用，避免将样式写成不可用字体
         bool mainFontValid = !string.IsNullOrEmpty(mainFont)
-            && FontDetector.IsShxFontAvailable(mainFont, db);
+            && FontDetector.IsShxFontAvailable(mainFont, context);
         bool bigFontValid = !string.IsNullOrEmpty(bigFont)
-            && FontDetector.IsShxFontAvailable(bigFont, db);
+            && FontDetector.IsShxFontAvailable(bigFont, context);
         bool trueTypeFontValid = !string.IsNullOrEmpty(trueTypeFont)
-            && FontDetector.IsTrueTypeFontAvailable(trueTypeFont, db);
+            && FontDetector.IsTrueTypeFontAvailable(trueTypeFont, context);
 
         if (!string.IsNullOrEmpty(mainFont) && !mainFontValid)
             log.Warning($"配置的 SHX 替换字体 '{mainFont}' 在当前环境中不可用，将跳过 SHX 主字体替换");
@@ -54,8 +55,8 @@ internal static class FontReplacer
             missingMap.TryAdd(missingFonts[i].StyleName, missingFonts[i]);
         }
 
-        using var tr = db.TransactionManager.StartTransaction();
-        var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
+        using var tr = context.Db.TransactionManager.StartTransaction();
+        var styleTable = (TextStyleTable)tr.GetObject(context.Db.TextStyleTableId, OpenMode.ForRead);
 
         foreach (ObjectId id in styleTable)
         {
@@ -78,7 +79,7 @@ internal static class FontReplacer
                         // TrueType 只用 TrueType 字体替换（需通过可用性校验）
                         if (trueTypeFontValid)
                         {
-                            var (charset, pitch) = FontDetector.GetTrueTypeFontMetrics(trueTypeFont);
+                            var (charset, pitch) = FontDetector.GetTrueTypeFontMetrics(trueTypeFont, context);
 
                             // 诊断: 替换前状态
                             var before = style.Font;
@@ -143,23 +144,20 @@ internal static class FontReplacer
     /// 用于手动逐一指定替换字体的场景（仅影响当前图纸，不写入注册表）。
     /// </summary>
     public static int ReplaceByStyleMapping(
-        Database db,
-        IReadOnlyList<StyleFontReplacement> replacements)
+        IReadOnlyList<StyleFontReplacement> replacements,
+        FontDetectionContext context)
     {
         if (replacements.Count == 0) return 0;
 
         var log = LogService.Instance;
         int replaceCount = 0;
 
-        // 清除缓存，确保在当前图纸上下文中重新验证
-        FontDetector.ClearCaches();
-
         var map = new Dictionary<string, StyleFontReplacement>(replacements.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var r in replacements)
             map.TryAdd(r.StyleName, r);
 
-        using var tr = db.TransactionManager.StartTransaction();
-        var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
+        using var tr = context.Db.TransactionManager.StartTransaction();
+        var styleTable = (TextStyleTable)tr.GetObject(context.Db.TextStyleTableId, OpenMode.ForRead);
 
         foreach (ObjectId id in styleTable)
         {
@@ -178,7 +176,7 @@ internal static class FontReplacer
                 {
                     if (replacement.IsTrueType)
                     {
-                        if (!FontDetector.IsTrueTypeFontAvailable(replacement.MainFontReplacement, db))
+                        if (!FontDetector.IsTrueTypeFontAvailable(replacement.MainFontReplacement, context))
                         {
                             log.Warning($"手动替换: 样式 '{replacement.StyleName}' 的 TrueType 替换字体 '{replacement.MainFontReplacement}' 不可用，跳过");
                         }
@@ -186,7 +184,7 @@ internal static class FontReplacer
                         {
                             // FontDescriptor 要求字族名，去除可能的文件扩展名
                             var fontFamily = NormalizeTrueTypeName(replacement.MainFontReplacement);
-                            var (charset, pitch) = FontDetector.GetTrueTypeFontMetrics(fontFamily);
+                            var (charset, pitch) = FontDetector.GetTrueTypeFontMetrics(fontFamily, context);
                             // 清空顺序: 先 BigFont 再 FileName，避免 eInvalidInput
                             style.BigFontFileName = string.Empty;
                             style.FileName = string.Empty;
@@ -196,7 +194,7 @@ internal static class FontReplacer
                     }
                     else
                     {
-                        if (!FontDetector.IsShxFontAvailable(replacement.MainFontReplacement, db))
+                        if (!FontDetector.IsShxFontAvailable(replacement.MainFontReplacement, context))
                         {
                             log.Warning($"手动替换: 样式 '{replacement.StyleName}' 的 SHX 替换字体 '{replacement.MainFontReplacement}' 不可用，跳过");
                         }
@@ -208,7 +206,7 @@ internal static class FontReplacer
 
                             // 始终重建 BigFont 状态，避免旧值残留或与新主字体不匹配
                             if (!string.IsNullOrEmpty(replacement.BigFontReplacement)
-                                && FontDetector.IsShxFontAvailable(replacement.BigFontReplacement, db))
+                                && FontDetector.IsShxFontAvailable(replacement.BigFontReplacement, context))
                             {
                                 style.BigFontFileName = replacement.BigFontReplacement;
                             }
@@ -243,7 +241,7 @@ internal static class FontReplacer
     /// 但 Hook 会在加载阶段重定向缺失 SHX → 内部缓存与 DWG 不一致 → ST "已修改"弹窗。
     /// 清除 FileName 可消除不一致，同时不影响渲染（TrueType 仍可用）。
     /// </summary>
-    public static int CleanupStaleShxReferences(Database db)
+    public static int CleanupStaleShxReferences(FontDetectionContext context)
     {
         var log = LogService.Instance;
         int cleaned = 0;
@@ -255,8 +253,8 @@ internal static class FontReplacer
             return 0;
         }
 
-        using var tr = db.TransactionManager.StartTransaction();
-        var styleTable = (TextStyleTable)tr.GetObject(db.TextStyleTableId, OpenMode.ForRead);
+        using var tr = context.Db.TransactionManager.StartTransaction();
+        var styleTable = (TextStyleTable)tr.GetObject(context.Db.TextStyleTableId, OpenMode.ForRead);
 
         foreach (ObjectId id in styleTable)
         {
@@ -270,7 +268,7 @@ internal static class FontReplacer
 
                 // TrueType 必须已安装（通过系统字体索引或 FindFile 双重验证）
                 if (!FontDetector.IsSystemFont(font.TypeFace)
-                    && !FontDetector.IsTrueTypeFontAvailable(font.TypeFace, db))
+                    && !FontDetector.IsTrueTypeFontAvailable(font.TypeFace, context))
                     continue;
 
                 var fileName = style.FileName ?? string.Empty;
@@ -283,7 +281,7 @@ internal static class FontReplacer
                     continue;
 
                 // 复用 FontDetector 的缓存查找，避免直接调用 FindFile 引发异常风暴
-                if (FontDetector.IsShxFontAvailable(fileName, db))
+                if (FontDetector.IsShxFontAvailable(fileName, context))
                     continue; // SHX 存在，无需清理
 
                 // TrueType 可用 + SHX 缺失 → 清除残留 SHX 引用

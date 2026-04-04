@@ -45,12 +45,11 @@ internal sealed class ExecutionController
             // 获取文档写入锁
             using (doc.LockDocument())
             {
-                // 清除字体查找缓存，确保在当前图纸上下文中重新检测
-                // 统一管理缓存生命周期：一次 Execute 周期内检测→替换共享同一份缓存
-                FontDetector.ClearCaches();
+                // 创建独立的执行上下文 — 缓存生命周期与本次事务绑定，GC 自动回收
+                var context = new FontDetectionContext(doc.Database);
 
                 // 第一阶段: 检测缺失字体（样式表原始状态）
-                var missingFonts = FontDetector.DetectMissingFonts(doc.Database);
+                var missingFonts = FontDetector.DetectMissingFonts(context);
 
                 // 存储检测结果供 AFRLOG 命令使用
                 contextMgr.StoreDetectionResults(doc, missingFonts);
@@ -64,11 +63,11 @@ internal sealed class ExecutionController
 
                 // 第二阶段: 替换缺失字体 + Regen 刷新显示
                 FontReplacer.ReplaceMissingFonts(
-                    doc.Database, missingFonts, config.MainFont, config.BigFont, config.TrueTypeFont);
+                    missingFonts, config.MainFont, config.BigFont, config.TrueTypeFont, context);
 
                 // CleanupStaleShxReferences 仅在 Hook 启用时需要（防止 Hook 重定向导致内部状态不一致）
                 // 当前 Hook 已禁用，跳过清理以避免破坏性地删除原始 SHX 备用引用
-                // FontReplacer.CleanupStaleShxReferences(doc.Database);
+                // FontReplacer.CleanupStaleShxReferences(context);
 
                 // 诊断: Regen 前验证样式表状态（确认替换是否持久化到数据库）
                 VerifyStyleTableAfterReplace(doc.Database, missingFonts, log);
