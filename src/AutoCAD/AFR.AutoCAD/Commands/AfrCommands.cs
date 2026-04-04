@@ -155,6 +155,7 @@ public class AfrCommands
             PluginEntryBase.Unload();
             log.Info("已注销所有文档事件监听。");
             log.Info("已清空执行队列和文档跟踪状态。");
+            log.Info("已将 FONTALT 恢复为 CAD 默认字体 'simplex.shx'。");
 
             // 第二步：删除注册表项（仅 AFR-ACAD2026）
             var config = ConfigService.Instance;
