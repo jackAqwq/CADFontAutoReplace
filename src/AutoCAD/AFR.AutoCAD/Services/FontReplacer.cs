@@ -117,6 +117,14 @@ internal static class FontReplacer
                         }
                     }
                 }
+                // 单独处理仅 BigFont 缺失的情况（主字体正常，常见于中文 SHX 字体）
+                // TrueType 样式不支持大字体，跳过；FileName 必须有效才能设置 BigFontFileName
+                else if (!missing.IsTrueType && missing.IsBigFontMissing
+                         && !string.IsNullOrEmpty(style.FileName))
+                {
+                    style.BigFontFileName = bigFontValid ? bigFont : string.Empty;
+                    changed = true;
+                }
 
                 if (changed) replaceCount++;
             }
