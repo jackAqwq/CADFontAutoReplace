@@ -60,6 +60,9 @@ internal static class FontReplacer
                 var style = (TextStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
                 if (!missingMap.TryGetValue(style.Name, out var missing)) continue;
 
+                // ShapeFile 样式用于复杂线型（ltypeshp.shx 等），替换会破坏线型结构
+                if (style.IsShapeFile) continue;
+
                 bool changed = false;
                 style.UpgradeOpen();
 
@@ -153,6 +156,9 @@ internal static class FontReplacer
             {
                 var style = (TextStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
                 if (!map.TryGetValue(style.Name, out var replacement)) continue;
+
+                // ShapeFile 样式用于复杂线型（ltypeshp.shx 等），替换会破坏线型结构
+                if (style.IsShapeFile) continue;
 
                 bool changed = false;
                 style.UpgradeOpen();
