@@ -169,10 +169,15 @@ internal static class FontDetector
     {
         string? filePath = TryFindFilePath(fileName, context, FindFileHint.CompiledShapeFile);
         if (filePath == null) return false;
-        return expectBigFont != ClassifyShxFile(filePath, context);
+
+        bool? classified = ClassifyShxFile(filePath, context);
+        // 分类失败 → 保守处理为不匹配，触发替换修复而非放行
+        if (!classified.HasValue) return true;
+
+        return expectBigFont != classified.Value;
     }
 
-    private static bool ClassifyShxFile(string filePath, FontDetectionContext context)
+    private static bool? ClassifyShxFile(string filePath, FontDetectionContext context)
     {
         if (context.ShxTypeCache.TryGetValue(filePath, out bool cached)) return cached;
         bool isBigFont;
@@ -183,7 +188,7 @@ internal static class FontDetector
             int bytesRead = fs.Read(header, 0, 30);
             isBigFont = bytesRead >= 25 && System.Text.Encoding.ASCII.GetString(header, 0, bytesRead).Contains("bigfont", StringComparison.OrdinalIgnoreCase);
         }
-        catch { return false; }
+        catch { return null; }
         context.ShxTypeCache.TryAdd(filePath, isBigFont);
         return isBigFont;
     }
