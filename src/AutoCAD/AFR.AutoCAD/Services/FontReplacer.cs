@@ -82,10 +82,10 @@ internal static class FontReplacer
                             log.Info($"[TT替换] 替换为: '{trueTypeFont}' CharSet={charset} Pitch={pitch}");
 
                             // 先清除 SHX 引用，再设置 TrueType
-                            // 顺序关键: FileName 和 Font 有内部联动，
-                            // 必须先清 FileName 再设 Font，与 SHX 分支的"先清后设"对称。
-                            style.FileName = string.Empty;
+                            // 顺序关键: AutoCAD 要求 FileName 为有效 SHX 时才能设置 BigFontFileName，
+                            // 因此清空时必须先清 BigFontFileName 再清 FileName，否则 eInvalidInput。
                             style.BigFontFileName = string.Empty;
+                            style.FileName = string.Empty;
                             style.Font = new FontDescriptor(trueTypeFont, false, false, charset, pitch);
 
                             // 诊断: 替换后读回验证
@@ -174,8 +174,9 @@ internal static class FontReplacer
                         else
                         {
                             var (charset, pitch) = FontDetector.GetTrueTypeFontMetrics(replacement.MainFontReplacement);
-                            style.FileName = string.Empty;
+                            // 清空顺序: 先 BigFont 再 FileName，避免 eInvalidInput
                             style.BigFontFileName = string.Empty;
+                            style.FileName = string.Empty;
                             style.Font = new FontDescriptor(replacement.MainFontReplacement, false, false, charset, pitch);
                             changed = true;
                         }
@@ -271,8 +272,9 @@ internal static class FontReplacer
                 // TrueType 可用 + SHX 缺失 → 清除残留 SHX 引用
                 style.UpgradeOpen();
                 log.Info($"[清理] 样式='{style.Name}' TrueType='{font.TypeFace}' 清除残留 FileName='{fileName}' BigFont='{style.BigFontFileName}'");
-                style.FileName = string.Empty;
+                // 清空顺序: 先 BigFont 再 FileName，避免 eInvalidInput
                 style.BigFontFileName = string.Empty;
+                style.FileName = string.Empty;
                 cleaned++;
             }
             catch (Exception ex)
