@@ -110,9 +110,8 @@ internal static class FontReplacer
                             style.Font = new FontDescriptor("", false, false, 0, 0);
                             style.FileName = mainFont;
 
-                            // 大字体与主字体一并处理，确保三字段状态一致
-                            if (missing.IsBigFontMissing && bigFontValid)
-                                style.BigFontFileName = bigFont;
+                            // 始终重建 BigFont 状态，避免旧值残留或与新主字体不匹配
+                            style.BigFontFileName = bigFontValid ? bigFont : string.Empty;
 
                             changed = true;
                         }
@@ -199,13 +198,17 @@ internal static class FontReplacer
                             style.Font = new FontDescriptor("", false, false, 0, 0);
                             style.FileName = replacement.MainFontReplacement;
 
-                            // 大字体与主字体一并处理，确保三字段状态一致
-                            if (!string.IsNullOrEmpty(replacement.BigFontReplacement))
+                            // 始终重建 BigFont 状态，避免旧值残留或与新主字体不匹配
+                            if (!string.IsNullOrEmpty(replacement.BigFontReplacement)
+                                && FontDetector.IsShxFontAvailable(replacement.BigFontReplacement, db))
                             {
-                                if (FontDetector.IsShxFontAvailable(replacement.BigFontReplacement, db))
-                                    style.BigFontFileName = replacement.BigFontReplacement;
-                                else
-                                    log.Warning($"手动替换: 样式 '{replacement.StyleName}' 的大字体替换字体 '{replacement.BigFontReplacement}' 不可用，跳过");
+                                style.BigFontFileName = replacement.BigFontReplacement;
+                            }
+                            else
+                            {
+                                if (!string.IsNullOrEmpty(replacement.BigFontReplacement))
+                                    log.Warning($"手动替换: 样式 '{replacement.StyleName}' 的大字体替换字体 '{replacement.BigFontReplacement}' 不可用，已清空");
+                                style.BigFontFileName = string.Empty;
                             }
 
                             changed = true;
