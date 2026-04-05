@@ -23,6 +23,9 @@ public sealed class FontReplacementRow : INotifyPropertyChanged
     /// <summary>该缺失字体是否已被成功替换。</summary>
     public bool IsReplaced { get; }
 
+    /// <summary>显示用缺失字体名（未替换时加 ⚠ 前缀）。</summary>
+    public string DisplayMissingFontName => IsReplaced ? MissingFontName : $"⚠ {MissingFontName}";
+
     /// <summary>可供选择的替换字体列表（根据字体类型自动匹配）。</summary>
     public ObservableCollection<string> AvailableFonts { get; }
 
