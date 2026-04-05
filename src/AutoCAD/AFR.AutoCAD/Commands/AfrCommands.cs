@@ -92,14 +92,24 @@ public class AfrCommands
                 // 创建独立的执行上下文 — 每次 AFRLOG 命令使用全新缓存
                 var context = new FontDetectionContext(doc.Database);
 
-                // 始终从数据库重新检测缺失字体
-                // 用户可能通过 ST 命令手工修改了字体，缓存的检测结果已过时
+                // 从数据库重新检测当前缺失字体
                 results = FontDetector.DetectMissingFonts(context);
 
-                // 更新存储的检测结果，保持一致性
-                DocumentContextManager.Instance.StoreDetectionResults(doc, results);
+                if (results.Count > 0)
+                {
+                    // 仍有缺失字体 → 更新存储结果，反映最新状态
+                    DocumentContextManager.Instance.StoreDetectionResults(doc, results);
+                }
+                else
+                {
+                    // 当前无缺失 → 尝试使用自动替换阶段存储的检测结果
+                    // 这样用户可以看到哪些字体被自动替换过
+                    var stored = DocumentContextManager.Instance.GetDetectionResults(doc);
+                    if (stored != null && stored.Count > 0)
+                        results = stored;
+                }
 
-                // 读取图纸中各样式的当前实际字体（反映手动替换/ST命令修改后的状态）
+                // 读取图纸中各样式的当前实际字体（反映替换/ST命令修改后的状态）
                 if (results.Count > 0)
                 {
                     currentFonts = FontDetector.ReadCurrentFontAssignments(doc.Database);
