@@ -176,13 +176,13 @@ internal static class LdFileHook
 
     #region Hook Handler
 
-    // ldfile param2 字体类型常量（基于 AutoCAD 实际行为验证）
-    // param2=0: SHX 大字体（Big Font）
-    // param2=1: 常规 SHX 主字体
+    // ldfile param2 字体类型常量（基于 AutoCAD 2026 诊断日志实测验证）
+    // param2=0: 常规 SHX 主字体
     // param2=2: SHX 形文件（Shape File）
-    private const int FontTypeBigFont = 0;
-    private const int FontTypeRegular = 1;
+    // param2=4: SHX 大字体（Big Font）
+    private const int FontTypeRegular = 0;
     private const int FontTypeShape = 2;
+    private const int FontTypeBigFont = 4;
 
     private static int HookHandler(IntPtr fileName, int param2, IntPtr db, IntPtr desc)
     {
@@ -214,20 +214,22 @@ internal static class LdFileHook
                 return _trampolineDelegate(fileName, param2, db, desc);
 
             // 字体缺失 → 按字体类型选择替换策略
-            // 常规 SHX 主字体（param2=1, .shx）→ 由 FONTALT 原生机制处理，不通过 Hook
+            // 常规 SHX 主字体（param2=0）→ 由 FONTALT 原生机制处理，不通过 Hook
             //   原因: Hook 的 native 级别重定向会干扰块参照的字体缓存渲染
-            // SHX 大字体（param2=0, .shx）→ Hook 处理（FONTALT 不区分大/主字体）
-            // TrueType（非 .shx）→ Hook 处理（FONTALT 不处理 TrueType）
+            //   注意: AutoCAD 可能传入不带 .shx 后缀的字体名（如 'REALSZ'、'2'），仅靠 param2 判断
+            // SHX 大字体（param2=4）→ Hook 处理（FONTALT 不区分大/主字体）
+            // TrueType（非 .shx 且非大字体）→ Hook 处理（FONTALT 不处理 TrueType）
             bool isShxRequest = fontName.EndsWith(".shx", StringComparison.OrdinalIgnoreCase);
 
-            // 常规 SHX 主字体 → 放行，由 FONTALT 处理
-            if (isShxRequest && param2 == FontTypeRegular)
+            // 常规主字体 → 放行，由 FONTALT 处理
+            if (param2 == FontTypeRegular)
             {
                 DiagnosticLogger.Log("Hook", $"FONTALT 放行: '{fontName}' param2={param2}");
                 return _trampolineDelegate(fileName, param2, db, desc);
             }
 
-            string? resolved = isShxRequest
+            // 大字体请求始终按 SHX 处理（即使不带 .shx 后缀）；其余按文件名后缀分类
+            string? resolved = (param2 == FontTypeBigFont || isShxRequest)
                 ? ResolveMissingShxFont(fontName, param2)
                 : ResolveMissingTrueTypeFont(fontName);
             if (resolved != null)
@@ -263,8 +265,8 @@ internal static class LdFileHook
     }
 
     /// <summary>
-    /// 解析缺失 SHX 字体的替换目标（fontName 以 .shx 结尾）。
-    /// param2 编码了 AutoCAD 期望的字体类型，决定使用 MainFont 还是 BigFont。
+    /// 解析缺失 SHX 字体的替换目标。
+    /// param2 编码了 AutoCAD 期望的字体类型（0=主字体, 4=大字体），决定使用 MainFont 还是 BigFont。
     /// </summary>
     private static string? ResolveMissingShxFont(string fontName, int fontType)
     {
