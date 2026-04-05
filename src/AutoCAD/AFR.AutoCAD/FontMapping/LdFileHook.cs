@@ -222,7 +222,10 @@ internal static class LdFileHook
 
             // 常规 SHX 主字体 → 放行，由 FONTALT 处理
             if (isShxRequest && param2 == FontTypeRegular)
+            {
+                DiagnosticLogger.Log("Hook", $"FONTALT 放行: '{fontName}' param2={param2}");
                 return _trampolineDelegate(fileName, param2, db, desc);
+            }
 
             string? resolved = isShxRequest
                 ? ResolveMissingShxFont(fontName, param2)
@@ -234,6 +237,8 @@ internal static class LdFileHook
                     : fontName.TrimStart('@');
                 _redirectLog.TryAdd(normalizedName, (resolved, param2));
 
+                DiagnosticLogger.Log("Hook", $"重定向: '{fontName}' param2={param2} → '{resolved}'");
+
                 // 获取或创建原生字符串指针（缓存，不释放）
                 // ldfile 可能将 fileName 指针存入 AcFontDescription 供后续大字体绑定查找，
                 // 若使用临时指针并释放，后续读取悬空指针会导致字体类型判断错误，
@@ -244,6 +249,7 @@ internal static class LdFileHook
                 return _trampolineDelegate(resolvedPtr, param2, db, desc);
             }
 
+            DiagnosticLogger.Log("Hook", $"未解析: '{fontName}' param2={param2} isShx={isShxRequest}");
             return _trampolineDelegate(fileName, param2, db, desc);
         }
         catch
