@@ -12,6 +12,8 @@ namespace AFR.UI;
 /// </summary>
 public partial class FontReplacementLogWindow : Window
 {
+    private bool _comboBoxDropDownOpen;
+
     public FontReplacementLogViewModel ViewModel { get; }
 
     /// <summary>累计成功替换的样式数量。</summary>
@@ -76,11 +78,17 @@ public partial class FontReplacementLogWindow : Window
             var textBox = combo.Template.FindName("PART_EditableTextBox", combo) as System.Windows.Controls.TextBox;
             if (textBox != null)
                 textBox.SelectionBrush = System.Windows.Media.Brushes.Transparent;
+
+            combo.DropDownOpened += (_, _) => _comboBoxDropDownOpen = true;
+            combo.DropDownClosed += (_, _) => _comboBoxDropDownOpen = false;
         }
     }
 
     private void OnTablePreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // ComboBox 下拉列表打开时，让其内部 ScrollViewer 处理滚动
+        if (_comboBoxDropDownOpen) return;
+
         if (sender is System.Windows.Controls.ScrollViewer scrollViewer)
         {
             // 动态探测真实行高（ComboBox 和 Padding 会将行高撑到 30px 或随 DPI 变化）
