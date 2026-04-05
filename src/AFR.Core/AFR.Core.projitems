@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>{D2E3F4A5-B6C7-4D8E-9F0A-1B2C3D4E5F60}</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>AFR</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Abstractions\ICadHost.cs" Link="Abstractions\ICadHost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Abstractions\ICadPlatform.cs" Link="Abstractions\ICadPlatform.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Abstractions\IFontHook.cs" Link="Abstractions\IFontHook.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Abstractions\IFontScanner.cs" Link="Abstractions\IFontScanner.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Abstractions\ILogService.cs" Link="Abstractions\ILogService.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\FontCheckResult.cs" Link="Models\FontCheckResult.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\InlineFontFixRecord.cs" Link="Models\InlineFontFixRecord.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\StyleFontReplacement.cs" Link="Models\StyleFontReplacement.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Platform\PlatformManager.cs" Link="Platform\PlatformManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Services\ConfigService.cs" Link="Services\ConfigService.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Services\RegistryService.cs" Link="Services\RegistryService.cs" />
+  </ItemGroup>
+</Project>

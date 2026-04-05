@@ -18,11 +18,21 @@ AutoCAD 插件，自动检测并替换图纸中缺失的 SHX / TrueType / 大字
 
 ## 支持的 AutoCAD 版本
 
-| DLL 文件名 | AutoCAD 版本 | 注册表路径 |
-|---|---|---|
-| `AFR-ACAD2026.dll` | AutoCAD **2026**（R25.1） | `R25.1\ACAD-xxxx:xxx` |
+| DLL 文件名 | AutoCAD 版本 | .NET | 注册表路径 |
+|---|---|---|---|
+| `AFR-ACAD2026.dll` | AutoCAD **2026**（R25.1） | .NET 8 | `R25.1\ACAD-xxxx:xxx` |
 
-> 📌 目前仅支持 AutoCAD 2026。后续版本支持将以独立 DLL 的形式发布，文件名中的版本号会相应变化。
+> 📌 架构已支持多版本扩展。添加新版本仅需创建 2 个文件（`PluginEntry.cs` + `Platform.cs`），无需修改共享代码。
+
+## 项目结构
+
+```
+src/
+├── AFR.Core/              Class Library — 接口、模型、基础服务（纯 .NET，无 CAD 依赖）
+└── AutoCAD/
+    ├── AFR.AutoCAD/        Shared Project — AutoCAD 通用逻辑（字体检测/替换/Hook/UI）
+    └── AFR-ACAD2026/       版本适配壳 — 仅 PluginEntry + 平台常量（2 个文件）
+```
 
 ## 功能特性
 
