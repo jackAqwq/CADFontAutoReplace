@@ -155,7 +155,7 @@
 												</Grid.ColumnDefinitions>
 												<!-- 分割线内缩，完美避开底层边界圆角在滚动时的横穿重叠。必须放在 Grid.ColumnDefinitions 之后 -->
 												<Border Grid.ColumnSpan="4" VerticalAlignment="Bottom" Height="1"
-														Background="{DynamicResource BorderBrush}" Margin="6,0,6,-2" />
+														Background="{DynamicResource BorderBrush}" Margin="6,0,6,-3" />
 												<TextBlock Grid.Column="0" Text="{Binding StyleName}"
 														   FontSize="11" VerticalAlignment="Center"
 														   Foreground="{DynamicResource PrimaryTextBrush}"
@@ -212,7 +212,7 @@
 									</Grid.RowDefinitions>
 
 									<!-- 小标题 -->
-									<Border Grid.Row="0" Padding="8,4" CornerRadius="6,6,0,0"
+									<Border Grid.Row="0" Padding="8,4" CornerRadius="0"
 											Background="{DynamicResource SecondaryRegionBrush}"
 											BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
 										<TextBlock Text="MText 内联字体映射（自动完成，无需手动操作）"
