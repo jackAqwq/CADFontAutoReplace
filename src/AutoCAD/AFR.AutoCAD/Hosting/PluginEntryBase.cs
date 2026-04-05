@@ -69,8 +69,10 @@ public abstract class PluginEntryBase : IExtensionApplication
 
     public void Initialize()
     {
-        // ── 诊断日志（调试时启用，发布前注释掉）──
+        // 诊断日志仅在 Debug 构建时自动启用
+#if DEBUG
         DiagnosticLogger.Enable();
+#endif
 
         // 注册嵌入程序集解析（HandyControl 等第三方依赖）
         AppDomain.CurrentDomain.AssemblyResolve += OnResolveEmbeddedAssembly;
