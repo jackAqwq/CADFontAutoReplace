@@ -57,9 +57,9 @@ internal sealed class LogService : ILogService
         }
         int total = trueTypeCount + shxCount + bigFontCount;
 
-        string msg = $"已替换缺失字体 {total} 个 (TrueType字体: {trueTypeCount}, SHX字体: {shxCount}, BigFont字体: {bigFontCount})";
+        string msg = $"[字体修复]已替换缺失字体 {total} 个（SHX主字体：{shxCount}，SHX大字体：{bigFontCount}，TrueType：{trueTypeCount}）";
         if (mtextMappingCount > 0)
-            msg += $", MText映射: {mtextMappingCount}";
+            msg += $" | MText内联字体映射：{mtextMappingCount}";
 
         lock (_lock)
         {
@@ -133,14 +133,9 @@ internal sealed class LogService : ILogService
             {
                 editor.WriteMessage(
                     "\n==========================================================================" +
-                    "\nCAD缺失字体自动替换工具 AFR" +
-                    "\n版本：v2.9-2026/03/25" +
-                    "\n项目地址(国外github)：https://github.com/splrad/CADFontAutoReplace.git" +
-                    "\n项目地址(国内gitee)：https://gitee.com/splrad/CADFontAutoReplace.git" +
-                    "\n命令说明：" +
-                    "\n AFR - 配置自动替换字体" +
-                    "\n AFRLOG - 查看替换日志与手动替换" +
-                    "\n AFRUNLOAD - 卸载插件" +
+                    "\nAFR 缺失字体自动替换 v3.0" +
+                    "\ngithub.com/splrad/CADFontAutoReplace | gitee.com/splrad/CADFontAutoReplace" +
+                    "\n命令: AFR(配置) AFRLOG(日志) AFRUNLOAD(卸载)" +
                     "\n==========================================================================");
             }
 

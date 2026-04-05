@@ -32,20 +32,20 @@ internal static class AppInitializer
             var profiles = GetAcadProfiles();
             if (profiles.Count == 0)
             {
-                log.Warning("未找到有效的 AutoCAD R25.1 配置文件 (ACAD-xxxx:xxx)。");
+                DiagnosticLogger.Log("初始化", "未找到有效的 AutoCAD R25.1 配置文件 (ACAD-xxxx:xxx)");
                 return false;
             }
 
             foreach (var profile in profiles)
             {
                 var appPath = $@"{AutoCadBasePath}\{profile}\Applications\{AppName}";
-                if (InitializeProfile(appPath, dllPath, log))
+                if (InitializeProfile(appPath, dllPath))
                     isFirstRun = true;
             }
         }
         catch (Exception ex)
         {
-            log.Error("应用初始化失败", ex);
+            log.Error("初始化失败", ex);
         }
         return isFirstRun;
     }
@@ -53,7 +53,7 @@ internal static class AppInitializer
     /// <summary>
     /// 初始化单个配置文件。返回 true 表示首次创建。
     /// </summary>
-    private static bool InitializeProfile(string appPath, string dllPath, LogService log)
+    private static bool InitializeProfile(string appPath, string dllPath)
     {
         bool isNewKey = !RegistryService.KeyExists(Registry.CurrentUser, appPath);
 
@@ -69,7 +69,7 @@ internal static class AppInitializer
             RegistryService.WriteString(Registry.CurrentUser, appPath, "MainFont", string.Empty);
             RegistryService.WriteString(Registry.CurrentUser, appPath, "BigFont", string.Empty);
             RegistryService.WriteDword(Registry.CurrentUser, appPath, "IsInitialized", 0);
-            log.Info($"首次安装 — 已写入默认配置。");
+            DiagnosticLogger.Log("初始化", "首次安装 — 已写入默认配置");
         }
         return isNewKey;
     }

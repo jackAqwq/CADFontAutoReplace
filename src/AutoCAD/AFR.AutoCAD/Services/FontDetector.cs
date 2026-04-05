@@ -48,7 +48,7 @@ internal static class FontDetector
                 try { safeFont = style.Font; }
                 catch (Exception fontEx)
                 {
-                    LogService.Instance.Warning($"样式 '{styleName}' 的 TrueType 描述符损坏，已跳过 TrueType 验证: {fontEx.Message}");
+                    DiagnosticLogger.Log("检测", $"样式 '{styleName}' 的 TrueType 描述符损坏，已跳过 TrueType 验证: {fontEx.Message}");
                 }
 
                 bool hasTT = safeFont.HasValue && !string.IsNullOrEmpty(safeFont.Value.TypeFace);
@@ -87,7 +87,7 @@ internal static class FontDetector
                     results.Add(new FontCheckResult(styleName, fileName, bigFontName, isMainMissing, isBigMissing, isTrueType, isTrueType ? (safeFont?.TypeFace ?? string.Empty) : string.Empty));
                 }
             }
-            catch (Exception ex) { LogService.Instance.Warning($"检查样式时出错 {id}: {ex.Message}"); }
+            catch (Exception ex) { DiagnosticLogger.Log("检测", $"检查样式时出错 {id}: {ex.Message}"); }
         }
         tr.Commit();
         return results;
@@ -246,7 +246,7 @@ internal static class FontDetector
                 foreach (var localizedName in family.FamilyNames.Values) names.Add(localizedName);
             }
         }
-        catch (Exception ex) { LogService.Instance.Error("系统字体索引构建失败", ex); }
+        catch (Exception ex) { DiagnosticLogger.LogError("系统字体索引构建失败", ex); }
         return names;
     }
 
@@ -259,11 +259,11 @@ internal static class FontDetector
         var result = QueryFontMetricsFromGdi(fontName);
         if (result.CharacterSet == 0 && result.PitchAndFamily == 0)
         {
-            LogService.Instance.Warning($"[FontMetrics] '{fontName}' GDI 查询失败，返回默认值 (0,0)，未缓存");
+            DiagnosticLogger.Log("FontMetrics", $"'{fontName}' GDI 查询失败，返回默认值 (0,0)，未缓存");
             return result;
         }
         context.FontMetricsCache.TryAdd(fontName, result);
-        LogService.Instance.Info($"[FontMetrics] '{fontName}' CharSet={result.CharacterSet} Pitch={result.PitchAndFamily}");
+        DiagnosticLogger.Log("FontMetrics", $"'{fontName}' CharSet={result.CharacterSet} Pitch={result.PitchAndFamily}");
         return result;
     }
 

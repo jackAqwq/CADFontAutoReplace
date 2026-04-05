@@ -24,14 +24,11 @@ public class AfrCommands
         var log = LogService.Instance;
         try
         {
-            log.Info("AFR 命令已调用。");
-
             var window = new FontSelectionWindow();
             PlatformManager.Host.ShowModalWindow(window);
 
             if (window.DialogResult != true)
             {
-                log.Info("AFR 命令已被用户取消。");
                 return;
             }
 
@@ -41,8 +38,6 @@ public class AfrCommands
             config.BigFont = window.SelectedBigFont;
             config.TrueTypeFont = window.SelectedTrueTypeFont;
             config.IsInitialized = true;
-
-            log.Info($"配置已保存 — 主字体: '{window.SelectedMainFont}', TrueType字体: '{window.SelectedTrueTypeFont}', 大字体: '{window.SelectedBigFont}'");
 
             // 更新 Hook 的替换字体配置
             PlatformManager.FontHook.UpdateConfig();
@@ -58,7 +53,7 @@ public class AfrCommands
         }
         catch (System.Exception ex)
         {
-            log.Error("AFR 命令执行失败", ex);
+            log.Error("配置保存失败", ex);
         }
         finally
         {
@@ -80,7 +75,7 @@ public class AfrCommands
             var doc = AcadApp.DocumentManager.MdiActiveDocument;
             if (doc == null)
             {
-                log.Info("请先打开一个图纸文件。");
+                log.Info("请先打开图纸。");
                 return;
             }
 
@@ -137,12 +132,12 @@ public class AfrCommands
 
             if (window.AppliedCount > 0)
             {
-                log.Info($"手动替换完成 — 共替换 {window.AppliedCount} 个样式的字体。");
+                log.Info($"已替换 {window.AppliedCount} 个样式的字体。");
             }
         }
         catch (System.Exception ex)
         {
-            log.Error("AFRLOG 命令执行失败", ex);
+            log.Error("日志查看失败", ex);
         }
         finally
         {
@@ -158,38 +153,26 @@ public class AfrCommands
     [CommandMethod("AFRUNLOAD")]
     public void AfrUnloadCommand()
     {
-        var editor = AcadApp.DocumentManager.MdiActiveDocument?.Editor;
         var log = LogService.Instance;
 
         try
         {
-            log.Info("正在执行 AFRUNLOAD — 卸载 AFR 插件...");
-
             // 第一步：注销事件、清空队列和文档跟踪
             PluginEntryBase.Unload();
-            log.Info("已注销所有文档事件监听。");
-            log.Info("已清空执行队列和文档跟踪状态。");
-            log.Info("已将 FONTALT 恢复为 CAD 默认字体 'simplex.shx'。");
 
             // 第二步：删除注册表项（仅 AFR-ACAD2026）
             var config = ConfigService.Instance;
-            int deletedCount = config.DeleteAllApplicationKeys();
-            log.Info($"注册表清理完成 — 共删除 {deletedCount} 个 AFR-ACAD2026 注册表项。");
+            config.DeleteAllApplicationKeys();
 
-            log.Info("AFR 插件已完全卸载。");
-            log.Info("如需重新加载，请重启CAD后使用 NETLOAD 命令加载新路径下的 DLL。");
+            log.Info("AFR 已卸载，重启 CAD 后可通过 NETLOAD 重新加载。");
 
-            // 第三步：先输出日志，再完成卸载
+            // 输出日志
             log.Flush();
-
-            // 最终确认（直接输出，因为 Flush 已完成）
-            editor?.WriteMessage("\nAFR 插件已卸载完成，可通过 NETLOAD 重新加载。\n");
         }
         catch (System.Exception ex)
         {
-            log.Error("AFRUNLOAD 命令执行失败", ex);
+            log.Error("卸载失败", ex);
             log.Flush();
-            editor?.WriteMessage($"\n卸载失败: {ex.Message}\n");
         }
     }
 }

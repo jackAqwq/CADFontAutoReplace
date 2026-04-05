@@ -40,11 +40,11 @@ internal static class FontReplacer
             && FontDetector.IsTrueTypeFontAvailable(trueTypeFont, context);
 
         if (!string.IsNullOrEmpty(mainFont) && !mainFontValid)
-            log.Warning($"配置的 SHX 替换字体 '{mainFont}' 在当前环境中不可用，将跳过 SHX 主字体替换");
+            log.Warning($"SHX 替换字体 '{mainFont}' 不可用，已跳过，请执行 AFR 重新配置");
         if (!string.IsNullOrEmpty(bigFont) && !bigFontValid)
-            log.Warning($"配置的大字体替换字体 '{bigFont}' 不可用或类型不匹配（非 BigFont），将跳过大字体替换");
+            log.Warning($"大字体 '{bigFont}' 不可用或类型不匹配，已跳过，请执行 AFR 重新配置");
         if (!string.IsNullOrEmpty(trueTypeFont) && !trueTypeFontValid)
-            log.Warning($"配置的 TrueType 替换字体 '{trueTypeFont}' 在当前环境中不可用，将跳过 TrueType 替换");
+            log.Warning($"TrueType 替换字体 '{trueTypeFont}' 不可用，已跳过，请执行 AFR 重新配置");
 
         DiagnosticLogger.LogPreValidation(mainFont ?? "", "SHX主字体", mainFontValid);
         DiagnosticLogger.LogPreValidation(bigFont ?? "", "大字体", bigFontValid);
@@ -91,21 +91,12 @@ internal static class FontReplacer
                         {
                             var (charset, pitch) = FontDetector.GetTrueTypeFontMetrics(trueTypeFont!, context);
 
-                            // 诊断: 替换前状态
-                            var before = style.Font;
-                            log.Info($"[TT替换] 样式='{style.Name}' 替换前: TypeFace='{before.TypeFace}' FileName='{style.FileName}' CharSet={before.CharacterSet} Pitch={before.PitchAndFamily}");
-                            log.Info($"[TT替换] 替换为: '{trueTypeFont}' CharSet={charset} Pitch={pitch}");
-
                             // 先清除 SHX 引用，再设置 TrueType
                             // 顺序关键: AutoCAD 要求 FileName 为有效 SHX 时才能设置 BigFontFileName，
                             // 因此清空时必须先清 BigFontFileName 再清 FileName，否则 eInvalidInput。
                             style.BigFontFileName = string.Empty;
                             style.FileName = string.Empty;
                             style.Font = new FontDescriptor(trueTypeFont, false, false, charset, pitch);
-
-                            // 诊断: 替换后读回验证
-                            var after = style.Font;
-                            log.Info($"[TT替换] 替换后: TypeFace='{after.TypeFace}' FileName='{style.FileName}' CharSet={after.CharacterSet} Pitch={after.PitchAndFamily}");
 
                             DiagnosticLogger.LogReplacement(style.Name, "Font.TypeFace",
                                 missing.TypeFace, trueTypeFont ?? "");
@@ -159,7 +150,7 @@ internal static class FontReplacer
             }
             catch (Exception ex)
             {
-                log.Error($"替换样式 {id} 的字体失败（已跳过）", ex);
+                DiagnosticLogger.LogError($"替换样式 {id} 的字体失败（已跳过）", ex);
             }
         }
 
@@ -210,7 +201,7 @@ internal static class FontReplacer
                     {
                         if (!FontDetector.IsTrueTypeFontAvailable(replacement.MainFontReplacement, context))
                         {
-                            log.Warning($"手动替换: 样式 '{replacement.StyleName}' 的 TrueType 替换字体 '{replacement.MainFontReplacement}' 不可用，跳过");
+                            log.Warning($"样式 '{replacement.StyleName}': 字体 '{replacement.MainFontReplacement}' 不可用，已跳过");
                         }
                         else
                         {
@@ -228,7 +219,7 @@ internal static class FontReplacer
                     {
                         if (!FontDetector.IsShxFontAvailable(replacement.MainFontReplacement, context))
                         {
-                            log.Warning($"手动替换: 样式 '{replacement.StyleName}' 的 SHX 替换字体 '{replacement.MainFontReplacement}' 不可用，跳过");
+                            log.Warning($"样式 '{replacement.StyleName}': 字体 '{replacement.MainFontReplacement}' 不可用，已跳过");
                         }
                         else
                         {
@@ -246,7 +237,7 @@ internal static class FontReplacer
                             else
                             {
                                 if (!string.IsNullOrEmpty(replacement.BigFontReplacement))
-                                    log.Warning($"手动替换: 样式 '{replacement.StyleName}' 的大字体替换字体 '{replacement.BigFontReplacement}' 不可用或类型不匹配，已清空");
+                                    log.Warning($"样式 '{replacement.StyleName}': 大字体 '{replacement.BigFontReplacement}' 不可用，已清空");
                                 style.BigFontFileName = string.Empty;
                             }
 
@@ -259,7 +250,7 @@ internal static class FontReplacer
             }
             catch (Exception ex)
             {
-                log.Error($"手动替换样式 {id} 的字体失败（已跳过）", ex);
+                DiagnosticLogger.LogError($"手动替换样式 {id} 的字体失败（已跳过）", ex);
             }
         }
 
@@ -282,7 +273,7 @@ internal static class FontReplacer
         // 系统字体索引未就绪时跳过清理，避免误判
         if (!FontDetector.IsSystemFontIndexReady)
         {
-            log.Warning("[清理] 系统字体索引尚未就绪，跳过残留 SHX 清理以避免误操作");
+            DiagnosticLogger.Log("清理", "系统字体索引尚未就绪，跳过残留 SHX 清理");
             return 0;
         }
 
@@ -300,7 +291,7 @@ internal static class FontReplacer
                 try { safeFont = style.Font; }
                 catch (Exception fontEx)
                 {
-                    log.Warning($"[清理] 样式 '{style.Name}' 的 TrueType 描述符损坏，已跳过: {fontEx.Message}");
+                    DiagnosticLogger.Log("清理", $"样式 '{style.Name}' 的 TrueType 描述符损坏，已跳过: {fontEx.Message}");
                     continue;
                 }
                 var font = safeFont.Value;
@@ -326,7 +317,7 @@ internal static class FontReplacer
 
                 // TrueType 可用 + SHX 缺失 → 清除残留 SHX 引用
                 style.UpgradeOpen();
-                log.Info($"[清理] 样式='{style.Name}' TrueType='{font.TypeFace}' 清除残留 FileName='{fileName}' BigFont='{style.BigFontFileName}'");
+                DiagnosticLogger.Log("清理", $"样式='{style.Name}' TrueType='{font.TypeFace}' 清除残留 FileName='{fileName}' BigFont='{style.BigFontFileName}'");
                 // 清空顺序: 先 BigFont 再 FileName，避免 eInvalidInput
                 style.BigFontFileName = string.Empty;
                 style.FileName = string.Empty;
@@ -334,7 +325,7 @@ internal static class FontReplacer
             }
             catch (Exception ex)
             {
-                log.Warning($"[清理] 处理样式 {id} 时出错（已跳过）: {ex.Message}");
+                DiagnosticLogger.Log("清理", $"处理样式 {id} 时出错（已跳过）: {ex.Message}");
             }
         }
 

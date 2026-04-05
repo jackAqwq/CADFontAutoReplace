@@ -34,7 +34,7 @@ internal sealed class ExecutionController
             // 门控: 仅在已初始化时自动执行
             if (!config.IsInitialized)
             {
-                log.Info("请先执行 AFR 命令配置替换字体，插件才会自动替换缺失字体。");
+                log.Info("请输入 AFR 命令配置替换字体。");
                 return;
             }
 
@@ -78,7 +78,7 @@ internal sealed class ExecutionController
 
                 // 诊断: Regen 前验证样式表状态（确认替换是否持久化到数据库）
                 DiagnosticLogger.BeginPhase("验证替换结果");
-                VerifyStyleTableAfterReplace(doc.Database, missingFonts, log);
+                VerifyStyleTableAfterReplace(doc.Database, missingFonts);
                 DiagnosticLogger.EndPhase();
 
                 doc.Editor.Regen();
@@ -101,7 +101,7 @@ internal sealed class ExecutionController
         }
         catch (Exception ex)
         {
-            log.Error($"执行失败 ({triggerSource})", ex);
+            log.Error("字体替换执行失败", ex);
         }
         finally
         {
@@ -145,7 +145,7 @@ internal sealed class ExecutionController
     /// 诊断: 在 Regen 前读回样式表，验证 FontReplacer 的修改是否已写入数据库。
     /// </summary>
     private static void VerifyStyleTableAfterReplace(
-        Database db, IReadOnlyList<FontCheckResult> missingFonts, LogService log)
+        Database db, IReadOnlyList<FontCheckResult> missingFonts)
     {
         try
         {
@@ -179,7 +179,7 @@ internal sealed class ExecutionController
                         catch { }
 
                         string tag = isMissing ? "[已替换]" : "[未替换]";
-                        log.Info($"{tag} 样式='{style.Name}' TypeFace='{typeFace}' FileName='{style.FileName}' BigFont='{style.BigFontFileName}' CharSet={charSet} Pitch={pitchFamily}");
+                        DiagnosticLogger.Log("验证", $"{tag} 样式='{style.Name}' TypeFace='{typeFace}' FileName='{style.FileName}' BigFont='{style.BigFontFileName}' CharSet={charSet} Pitch={pitchFamily}");
                     }
                 }
                 catch { }
@@ -189,7 +189,7 @@ internal sealed class ExecutionController
         }
         catch (Exception ex)
         {
-            log.Warning($"[验证] 读回样式表失败: {ex.Message}");
+            DiagnosticLogger.Log("验证", $"读回样式表失败: {ex.Message}");
         }
     }
 }

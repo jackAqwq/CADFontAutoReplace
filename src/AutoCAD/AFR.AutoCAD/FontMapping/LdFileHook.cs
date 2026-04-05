@@ -63,15 +63,13 @@ internal static class LdFileHook
     {
         if (_installed) return;
 
-        var log = LogService.Instance;
-
         try
         {
             IntPtr module = GetModuleHandle(AcDbDll);
-            if (module == IntPtr.Zero) { log.Warning("FontMapping: acdb25.dll 未加载"); return; }
+            if (module == IntPtr.Zero) { DiagnosticLogger.Log("FontMapping", "acdb25.dll 未加载"); return; }
 
             _targetAddr = GetProcAddress(module, LdFileExport);
-            if (_targetAddr == IntPtr.Zero) { log.Warning("FontMapping: 未找到 ldfile 导出"); return; }
+            if (_targetAddr == IntPtr.Zero) { DiagnosticLogger.Log("FontMapping", "未找到 ldfile 导出"); return; }
 
             // 加载用户配置
             var config = ConfigService.Instance;
@@ -84,7 +82,7 @@ internal static class LdFileHook
 
             if (string.IsNullOrEmpty(_repMainFont) && string.IsNullOrEmpty(_repBigFont))
             {
-                log.Info("FontMapping: 未配置替换字体，Hook 未安装");
+                DiagnosticLogger.Log("FontMapping", "未配置替换字体，Hook 未安装");
                 return;
             }
 
@@ -99,7 +97,7 @@ internal static class LdFileHook
             int trampolineSize = PrologueSize + 14; // 14 = absolute JMP
             _trampolineAddr = VirtualAlloc(IntPtr.Zero, (uint)trampolineSize,
                 0x3000 /* MEM_COMMIT | MEM_RESERVE */, 0x40 /* PAGE_EXECUTE_READWRITE */);
-            if (_trampolineAddr == IntPtr.Zero) { log.Warning("FontMapping: VirtualAlloc 失败"); return; }
+            if (_trampolineAddr == IntPtr.Zero) { DiagnosticLogger.Log("FontMapping", "VirtualAlloc 失败"); return; }
 
             // 复制原始指令到 Trampoline
             Marshal.Copy(_savedBytes, 0, _trampolineAddr, PrologueSize);
@@ -124,11 +122,11 @@ internal static class LdFileHook
             VirtualProtect(_targetAddr, (uint)PrologueSize, oldProtect, out _);
 
             _installed = true;
-            log.Info("FontMapping: ldfile Hook 已安装");
+            DiagnosticLogger.Log("FontMapping", "ldfile Hook 已安装");
         }
         catch (Exception ex)
         {
-            log.Error("FontMapping: Hook 安装失败", ex);
+            DiagnosticLogger.LogError("FontMapping: Hook 安装失败", ex);
         }
     }
 
@@ -152,7 +150,7 @@ internal static class LdFileHook
             }
 
             _installed = false;
-            LogService.Instance.Info("FontMapping: ldfile Hook 已卸载");
+            DiagnosticLogger.Log("FontMapping", "ldfile Hook 已卸载");
         }
         catch { }
     }
@@ -371,9 +369,9 @@ internal static class LdFileHook
         }
         catch (Exception ex)
         {
-            LogService.Instance.Warning($"FontMapping: 系统字体扫描失败: {ex.Message}");
+            DiagnosticLogger.Log("FontMapping", $"系统字体扫描失败: {ex.Message}");
         }
-        LogService.Instance.Info($"FontMapping: 可用字体 {_availableFonts.Count} 项 (系统字族名 {_availableFonts.Count - beforeCount} 项)");
+        DiagnosticLogger.Log("FontMapping", $"可用字体 {_availableFonts.Count} 项 (系统字族名 {_availableFonts.Count - beforeCount} 项)");
 
         // Windows 系统字体目录 — ldfile 可能收到系统字体文件名（如 simsun.ttc），
         // 这些文件位于 C:\Windows\Fonts 而非 AutoCAD 目录，必须扫描以避免误重定向。

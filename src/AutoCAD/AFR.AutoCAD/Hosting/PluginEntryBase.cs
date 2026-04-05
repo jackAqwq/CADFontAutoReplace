@@ -96,7 +96,7 @@ public abstract class PluginEntryBase : IExtensionApplication
             {
                 try { AcadApp.SetSystemVariable("FONTMAP", ""); } catch { }
                 try { AcadApp.SetSystemVariable("FONTALT", "."); } catch { }
-                log.Info("AFR 插件首次安装完成，请执行 AFR 命令配置替换字体。");
+                log.Info("首次加载，请输入 AFR 命令配置替换字体。");
             }
 
             // 第二阶段: 注册文档事件
@@ -202,8 +202,7 @@ public abstract class PluginEntryBase : IExtensionApplication
             }
             catch (System.Exception ex)
             {
-                LogService.Instance.Error($"{trigger} 延迟执行失败", ex);
-                LogService.Instance.Flush();
+                DiagnosticLogger.LogError($"{trigger} 延迟执行失败", ex);
             }
         }
     }

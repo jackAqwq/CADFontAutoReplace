@@ -43,7 +43,7 @@ public class MTextEditorCommand
                 tr.Commit();
             }
 
-            log.Info($"AFRVIEW: 已读取 MText 内容 (长度={contents.Length})");
+            DiagnosticLogger.Log("AFRVIEW", $"已读取 MText 内容 (长度={contents.Length})");
 
             var window = new MTextEditorWindow(contents);
             window.ParentWindowHandle = AcadApp.MainWindow.Handle;
@@ -51,7 +51,7 @@ public class MTextEditorCommand
         }
         catch (System.Exception ex)
         {
-            log.Error("AFRVIEW 命令执行失败", ex);
+            log.Error("MText 查看失败", ex);
         }
         finally
         {
