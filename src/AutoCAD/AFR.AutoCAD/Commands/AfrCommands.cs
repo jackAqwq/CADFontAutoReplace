@@ -22,6 +22,7 @@ public class AfrCommands
     public void AfrCommand()
     {
         var log = LogService.Instance;
+        DiagnosticLogger.Info("命令", "AFR 命令启动");
         try
         {
             var window = new FontSelectionWindow();
@@ -29,6 +30,7 @@ public class AfrCommands
 
             if (window.DialogResult != true)
             {
+                DiagnosticLogger.Info("命令", "用户取消配置");
                 return;
             }
 
@@ -38,6 +40,8 @@ public class AfrCommands
             config.BigFont = window.SelectedBigFont;
             config.TrueTypeFont = window.SelectedTrueTypeFont;
             config.IsInitialized = true;
+            DiagnosticLogger.Info("命令",
+                $"配置已保存: MainFont='{config.MainFont}' BigFont='{config.BigFont}' TrueType='{config.TrueTypeFont}'");
 
             // 更新 Hook 的替换字体配置
             PlatformManager.FontHook.UpdateConfig();
@@ -54,6 +58,7 @@ public class AfrCommands
         catch (System.Exception ex)
         {
             log.Error("配置保存失败", ex);
+            DiagnosticLogger.LogError("AFR 命令失败", ex);
         }
         finally
         {
@@ -70,6 +75,7 @@ public class AfrCommands
     public void AfrLogCommand()
     {
         var log = LogService.Instance;
+        DiagnosticLogger.Info("命令", "AFRLOG 命令启动");
         try
         {
             var doc = AcadApp.DocumentManager.MdiActiveDocument;
@@ -78,6 +84,8 @@ public class AfrCommands
                 log.Info("请先打开图纸。");
                 return;
             }
+
+            DiagnosticLogger.SetContext("Doc", System.IO.Path.GetFileName(doc.Name));
 
             List<FontCheckResult>? results;
             HashSet<string>? stillMissingStyleNames = null;
@@ -93,6 +101,9 @@ public class AfrCommands
 
                 // 合并策略：以存储的原始检测结果为基础，用当前检测标记仍缺失的样式
                 var stored = DocumentContextManager.Instance.GetDetectionResults(doc);
+                DiagnosticLogger.Info("AFRLOG",
+                    $"检测完成: 存储={stored?.Count ?? 0}条 当前缺失={currentMissing.Count}条");
+
                 if (stored != null && stored.Count > 0)
                 {
                     // 以原始检测结果为基础，确保已替换的字体也能显示
@@ -128,19 +139,33 @@ public class AfrCommands
                 results, config.MainFont, config.BigFont, config.TrueTypeFont,
                 currentFonts, inlineFixResults, stillMissingStyleNames);
 
+            DiagnosticLogger.Info("AFRLOG",
+                $"ViewModel 构建完成: Items={vm.Items.Count} 未替换={vm.FailedCount} 已替换={vm.ReplacedCount}");
+
             var window = new FontReplacementLogWindow(vm);
             window.ApplyReplacementsHandler = replacements =>
             {
+                DiagnosticLogger.Info("AFRLOG", $"ApplyReplacementsHandler 收到 {replacements.Count} 条替换请求");
+                for (int i = 0; i < replacements.Count; i++)
+                {
+                    var r = replacements[i];
+                    DiagnosticLogger.Info("AFRLOG",
+                        $"  [{i}] 样式='{r.StyleName}' Main='{r.MainFontReplacement}' Big='{r.BigFontReplacement}' IsTT={r.IsTrueType}");
+                }
+
                 using (doc.LockDocument())
                 {
                     // 手动替换也使用独立上下文
                     var replaceContext = new FontDetectionContext(doc.Database);
                     int count = FontReplacer.ReplaceByStyleMapping(replacements, replaceContext);
+                    DiagnosticLogger.Info("AFRLOG", $"ReplaceByStyleMapping 返回: {count}");
                     if (count > 0) doc.Editor.Regen();
                     return count;
                 }
             };
             PlatformManager.Host.ShowModalWindow(window);
+
+            DiagnosticLogger.Info("AFRLOG", $"窗口关闭: AppliedCount={window.AppliedCount}");
 
             if (window.AppliedCount > 0)
             {
@@ -150,6 +175,7 @@ public class AfrCommands
         catch (System.Exception ex)
         {
             log.Error("日志查看失败", ex);
+            DiagnosticLogger.LogError("AFRLOG 命令失败", ex);
         }
         finally
         {
@@ -166,6 +192,7 @@ public class AfrCommands
     public void AfrUnloadCommand()
     {
         var log = LogService.Instance;
+        DiagnosticLogger.Info("命令", "AFRUNLOAD 命令启动");
 
         try
         {

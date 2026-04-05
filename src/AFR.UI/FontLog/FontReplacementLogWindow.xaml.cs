@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using AFR.Models;
 using AFR.Platform;
+using AFR.Services;
 
 namespace AFR.UI;
 
@@ -53,14 +54,23 @@ public partial class FontReplacementLogWindow : Window
                     : existing with { MainFontReplacement = font, IsTrueType = row.IsTrueType };
             }
 
+            DiagnosticLogger.Info("UI", $"应用替换: 从 {ViewModel.Items.Count} 行构建 {map.Count} 条替换指令");
+            foreach (var (name, rep) in map)
+            {
+                DiagnosticLogger.Info("UI",
+                    $"  样式='{name}' Main='{rep.MainFontReplacement}' Big='{rep.BigFontReplacement}' IsTT={rep.IsTrueType}");
+            }
+
             if (map.Count > 0)
             {
                 int count = ApplyReplacementsHandler(map.Values.ToList());
                 AppliedCount += count;
+                DiagnosticLogger.Info("UI", $"Handler 返回: {count}, 累计 AppliedCount={AppliedCount}");
             }
         }
         catch (Exception ex)
         {
+            DiagnosticLogger.LogError("UI 应用替换失败", ex);
             PlatformManager.Logger?.Error("手动替换字体失败", ex);
         }
     }
