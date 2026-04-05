@@ -170,9 +170,9 @@
 													<ColumnDefinition Width="2*"/>
 													<ColumnDefinition Width="2*"/>
 												</Grid.ColumnDefinitions>
-												<!-- 分割线内缩，完美避开底层边界圆角在滚动时的横穿重叠。必须放在 Grid.ColumnDefinitions 之后 -->
+												<!-- 分割线延伸至表格边框边缘（负边距抵消行 Padding 和 BorderThickness，圆角由外层 OpacityMask 裁剪） -->
 												<Border Grid.ColumnSpan="4" VerticalAlignment="Bottom" Height="1"
-														Background="{DynamicResource BorderBrush}" Margin="6,0,6,-3" />
+														Background="{DynamicResource BorderBrush}" Margin="-11,0,-8,-2" />
 												<TextBlock Grid.Column="0" Text="{Binding StyleName}"
 														   FontSize="11" VerticalAlignment="Center"
 														   TextTrimming="CharacterEllipsis"
