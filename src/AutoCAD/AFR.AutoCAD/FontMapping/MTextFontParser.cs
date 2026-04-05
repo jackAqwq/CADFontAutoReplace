@@ -113,7 +113,7 @@ internal static class MTextFontParser
         {
             // 主字体 + 大字体
             string mainFont = segment[..commaPos].Trim();
-            string bigFont = segment[(commaPos + 1)..].TrimStart('@').Trim();
+            string bigFont = segment[(commaPos + 1)..].Trim();
 
             if (mainFont.Length > 0)
                 AddShxFont(mainFont, InlineFontType.ShxMain, result);

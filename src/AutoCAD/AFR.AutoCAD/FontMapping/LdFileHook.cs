@@ -235,7 +235,7 @@ internal static class LdFileHook
             if (resolved != null)
             {
                 string normalizedName = isShxRequest
-                    ? EnsureShx(fontName.TrimStart('@')).ToLowerInvariant()
+                    ? shxName.ToLowerInvariant()
                     : fontName.TrimStart('@');
                 _redirectLog.TryAdd(normalizedName, (resolved, param2));
 

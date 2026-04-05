@@ -60,9 +60,9 @@ internal sealed class LogService : ILogService
 
         string msg;
         if (stillMissingCount > 0)
-            msg = $"[字体修复]检测到缺失字体 {total} 个，已替换 {replaced} 个（SHX主字体：{shxCount}，SHX大字体：{bigFontCount}，TrueType：{trueTypeCount}）";
+            msg = $"[字体修复]检测到缺失字体 {total} 个，已替换 {replaced} 个(SHX主字体:{shxCount},SHX大字体:{bigFontCount},TrueType:{trueTypeCount})";
         else
-            msg = $"[字体修复]已替换缺失字体 {total} 个（SHX主字体：{shxCount}，SHX大字体：{bigFontCount}，TrueType：{trueTypeCount}）";
+            msg = $"[字体修复]已替换缺失字体 {total} 个(SHX主字体:{shxCount},SHX大字体:{bigFontCount},TrueType:{trueTypeCount})";
 
         if (mtextMappingCount > 0)
             msg += $" | MText内联字体映射：{mtextMappingCount}";
@@ -142,7 +142,7 @@ internal sealed class LogService : ILogService
             {
                 editor.WriteMessage(
                     "\n==========================================================================" +
-                    "\nAFR 缺失字体自动替换 v4.0" +
+                    "\nAFR 缺失字体自动替换 v5.0" +
                     "\ngithub.com/splrad/CADFontAutoReplace | gitee.com/splrad/CADFontAutoReplace" +
                     "\n命令: AFR(配置) AFRLOG(日志) AFRUNLOAD(卸载)" +
                     "\n==========================================================================");
