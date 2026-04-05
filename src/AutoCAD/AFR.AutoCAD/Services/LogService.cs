@@ -158,6 +158,11 @@ internal sealed class LogService : ILogService
                     editor.WriteMessage(bucket[i]);
                 }
             }
+
+            // 尾部换行 — 强制 AutoCAD 刷新命令行显示。
+            // 在 Idle 处理器中 WriteMessage 的文本可能不会立即可见（尤其是 DocumentCreated 触发时），
+            // 追加 \n 触发命令行提示符重绘，确保缓冲文本立即显示。
+            editor.WriteMessage("\n");
         }
         catch
         {

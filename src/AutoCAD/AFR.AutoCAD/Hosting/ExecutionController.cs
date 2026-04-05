@@ -28,6 +28,7 @@ internal sealed class ExecutionController
 
         var log = LogService.Instance;
         var config = ConfigService.Instance;
+        bool summarized = false;
 
         try
         {
@@ -63,6 +64,7 @@ internal sealed class ExecutionController
                     log.Info("未检测到缺失字体。");
                     contextMgr.MarkExecuted(doc);
                     DiagnosticLogger.WriteSummary();
+                    summarized = true;
                     return;
                 }
 
@@ -112,6 +114,7 @@ internal sealed class ExecutionController
                 // 统计汇总 — Regen 之后输出，确保统计信息是最后一行实质内容
                 log.AddStatistics(missingFonts, stillMissingSlotCount, inlineFixResults.Count);
                 DiagnosticLogger.WriteSummary();
+                summarized = true;
                 log.Flush();
             }
 
@@ -123,8 +126,9 @@ internal sealed class ExecutionController
         }
         finally
         {
-            // 安全网: 正常路径已在 using 块内 Flush，此处仅处理异常路径或早期返回路径的残留消息
-            DiagnosticLogger.WriteSummary();
+            // 安全网: 仅在异常路径或早期返回路径时输出汇总，避免正常路径重复输出
+            if (!summarized)
+                DiagnosticLogger.WriteSummary();
             log.Flush();
         }
     }
