@@ -317,9 +317,7 @@ internal static class FontReplacer
                 if (string.IsNullOrWhiteSpace(fileName)) continue;
 
                 // FileName 是 TrueType 文件 → 不需要清理
-                if (fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
-                    fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
-                    fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase))
+                if (FontDetector.IsTrueTypeFontFile(fileName))
                     continue;
 
                 // 复用 FontDetector 的缓存查找，避免直接调用 FindFile 引发异常风暴
@@ -355,9 +353,7 @@ internal static class FontReplacer
     {
         if (string.IsNullOrEmpty(name)) return string.Empty;
 
-        if (name.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
-            name.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
-            name.EndsWith(".otf", StringComparison.OrdinalIgnoreCase))
+        if (FontDetector.IsTrueTypeFontFile(name))
         {
             try
             {

@@ -55,10 +55,7 @@ internal static class FontDetector
                 bool hasFile = !string.IsNullOrWhiteSpace(fileName);
 
                 // FileName 为 TrueType 文件时，该样式仍属于 TrueType（AutoCAD 常同时写入 TypeFace 和 .ttf FileName）
-                bool fileIsTrueType = hasFile &&
-                    (fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
-                     fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
-                     fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
+                bool fileIsTrueType = hasFile && IsTrueTypeFontFile(fileName);
                 bool isTrueType = hasTT && (!hasFile || fileIsTrueType);
 
                 DiagnosticLogger.LogStyleScan(styleName, fileName, bigFontName,
@@ -228,6 +225,15 @@ internal static class FontDetector
     }
 
     private static string NormalizeFontName(string name) => Path.GetFileName(name.Trim());
+
+    /// <summary>
+    /// 判断文件名是否为 TrueType 字体文件（.ttf/.ttc/.otf）。
+    /// </summary>
+    internal static bool IsTrueTypeFontFile(string fileName)
+        => !string.IsNullOrEmpty(fileName) &&
+           (fileName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
 
     private static HashSet<string> BuildSystemFontIndex()
     {
