@@ -62,6 +62,14 @@ internal static class FontDetector
                     safeFont.HasValue ? (safeFont.Value.TypeFace ?? "") : "<损坏>",
                     isTrueType, style.IsShapeFile);
 
+                // ShapeFile 样式用于复杂线型（ltypeshp.shx 等），替换会破坏线型结构，
+                // 且 FontReplacer 始终跳过此类样式，检测阶段直接排除避免产生永远无法消除的"未替换"条目
+                if (style.IsShapeFile)
+                {
+                    DiagnosticLogger.Log("检测", $"跳过 ShapeFile 样式 '{styleName}'（FileName='{fileName}'）");
+                    continue;
+                }
+
                 // TrueType 样式: 验证字体可用才跳过
                 // IsTrueTypeFontAvailable 通过系统字体索引 + FindFile + 本地化反查三重验证
                 if (isTrueType)
