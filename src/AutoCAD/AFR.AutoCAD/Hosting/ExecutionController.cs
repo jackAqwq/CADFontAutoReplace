@@ -81,10 +81,12 @@ internal sealed class ExecutionController
                 VerifyStyleTableAfterReplace(doc.Database, missingFonts);
                 DiagnosticLogger.EndPhase();
 
+                // Regen 刷新显示 — 使替换后的字体立即可见
+                doc.Editor.Regen();
+
                 // 第三阶段: 扫描 MText 内联字体，交叉比对 Hook 重定向记录
                 // 正向扫描法: 解析 MText.Contents 中的 \F/\f 格式代码，
                 // 与 Hook 重定向记录交叉比对，精确识别被修复的内联字体。
-                // MText 扫描读取数据库，不依赖显示刷新，可在 Regen 前执行。
                 DiagnosticLogger.BeginPhase("扫描MText内联字体");
                 var inlineFonts = MTextInlineFontScanner.ScanInlineFonts(doc.Database);
                 var redirectLog = LdFileHook.GetRawRedirectLog();
@@ -92,13 +94,10 @@ internal sealed class ExecutionController
                 contextMgr.StoreInlineFontFixResults(doc, inlineFixResults);
                 DiagnosticLogger.EndPhase($"内联字体: {inlineFonts.Count}个, 修复: {inlineFixResults.Count}个");
 
-                // 统计汇总 — 在 Regen 前输出，避免 Regen 产生的 "命令:" 提示将统计信息顶上去
+                // 统计汇总 — Regen 之后输出，确保统计信息是最后一行实质内容
                 log.AddStatistics(missingFonts, inlineFixResults.Count);
                 DiagnosticLogger.WriteSummary();
                 log.Flush();
-
-                // Regen 放在最后 — 其输出 "正在重生成模型。" 和后续 "命令:" 是用户熟悉的正常行为
-                doc.Editor.Regen();
             }
 
             contextMgr.MarkExecuted(doc);

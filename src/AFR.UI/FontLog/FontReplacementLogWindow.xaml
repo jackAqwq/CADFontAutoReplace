@@ -83,55 +83,55 @@
                 </DockPanel>
             </Border>
 
-			<!-- 表格 + 内联修复（统一滚动区域） -->
-			<ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
-				<StackPanel>
-					<!-- 空状态提示 -->
-					<TextBlock Text="当前图纸未检测到缺失字体 ✓"
-							   HorizontalAlignment="Center" Margin="0,40"
-							   FontSize="14"
-							   Foreground="{DynamicResource SecondaryTextBrush}"
-							   Visibility="{Binding HasNoItems, Converter={StaticResource BoolToVis}}"/>
+			<!-- 空状态提示 -->
+			<TextBlock Grid.Row="4"
+					   Text="当前图纸未检测到缺失字体 ✓"
+					   HorizontalAlignment="Center" VerticalAlignment="Center"
+					   FontSize="14"
+					   Foreground="{DynamicResource SecondaryTextBrush}"
+					   Visibility="{Binding HasNoItems, Converter={StaticResource BoolToVis}}"/>
 
-					<!-- 样式表字体替换 -->
-					<Border CornerRadius="6"
-							BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-							Visibility="{Binding HasItems, Converter={StaticResource BoolToVis}}">
+			<!-- 样式表字体替换（边框+表头固定，仅数据行滚动） -->
+			<Border Grid.Row="4" CornerRadius="6" ClipToBounds="True"
+					BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+					Visibility="{Binding HasItems, Converter={StaticResource BoolToVis}}">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto"/>  <!-- 表头（固定） -->
+						<RowDefinition Height="*"/>     <!-- 数据行（滚动） -->
+					</Grid.RowDefinitions>
+
+					<!-- 表头 -->
+					<Border Grid.Row="0" Padding="8,4,24,4"
+							Background="{DynamicResource SecondaryRegionBrush}"
+							BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
 						<Grid>
-							<Grid.RowDefinitions>
-								<RowDefinition Height="Auto"/>
-								<RowDefinition Height="Auto"/>
-							</Grid.RowDefinitions>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="3*"/>
+								<ColumnDefinition Width="100"/>
+								<ColumnDefinition Width="2*"/>
+								<ColumnDefinition Width="2*"/>
+							</Grid.ColumnDefinitions>
+							<TextBlock Grid.Column="0" Text="样式名" FontSize="11" FontWeight="SemiBold"
+									   Foreground="{DynamicResource PrimaryTextBrush}"
+									   VerticalAlignment="Center"/>
+							<TextBlock Grid.Column="1" Text="类型" FontSize="11" FontWeight="SemiBold"
+									   Foreground="{DynamicResource PrimaryTextBrush}"
+									   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+							<TextBlock Grid.Column="2" Text="缺失字体" FontSize="11" FontWeight="SemiBold"
+									   Foreground="{DynamicResource PrimaryTextBrush}"
+									   VerticalAlignment="Center"/>
+							<TextBlock Grid.Column="3" Text="替换字体" FontSize="11" FontWeight="SemiBold"
+									   Foreground="{DynamicResource PrimaryTextBrush}"
+									   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+						</Grid>
+					</Border>
 
-							<!-- 表头 -->
-							<Border Grid.Row="0" Padding="8,4,24,4"
-									Background="{DynamicResource SecondaryRegionBrush}"
-									CornerRadius="6,6,0,0"
-									BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-								<Grid>
-									<Grid.ColumnDefinitions>
-										<ColumnDefinition Width="3*"/>
-										<ColumnDefinition Width="100"/>
-										<ColumnDefinition Width="2*"/>
-										<ColumnDefinition Width="2*"/>
-									</Grid.ColumnDefinitions>
-									<TextBlock Grid.Column="0" Text="样式名" FontSize="11" FontWeight="SemiBold"
-											   Foreground="{DynamicResource PrimaryTextBrush}"
-											   VerticalAlignment="Center"/>
-									<TextBlock Grid.Column="1" Text="类型" FontSize="11" FontWeight="SemiBold"
-											   Foreground="{DynamicResource PrimaryTextBrush}"
-											   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-									<TextBlock Grid.Column="2" Text="缺失字体" FontSize="11" FontWeight="SemiBold"
-											   Foreground="{DynamicResource PrimaryTextBrush}"
-											   VerticalAlignment="Center"/>
-									<TextBlock Grid.Column="3" Text="替换字体" FontSize="11" FontWeight="SemiBold"
-											   Foreground="{DynamicResource PrimaryTextBrush}"
-											   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-								</Grid>
-							</Border>
-
-							<!-- 数据行 -->
-							<ItemsControl Grid.Row="1" ItemsSource="{Binding Items}">
+					<!-- 数据行（可滚动） -->
+					<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+						<StackPanel>
+							<!-- 主表数据行 -->
+							<ItemsControl ItemsSource="{Binding Items}">
 								<ItemsControl.ItemTemplate>
 									<DataTemplate>
 										<Border Padding="8,1"
@@ -186,83 +186,84 @@
 									</DataTemplate>
 								</ItemsControl.ItemTemplate>
 							</ItemsControl>
-						</Grid>
-					</Border>
 
-					<!-- 内联字体修复区域 -->
-					<Border CornerRadius="6" Margin="0,6,0,0"
-							BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-							Visibility="{Binding HasInlineFix, Converter={StaticResource BoolToVis}}">
-						<Grid>
-							<Grid.RowDefinitions>
-								<RowDefinition Height="Auto"/>
-								<RowDefinition Height="Auto"/>
-							</Grid.RowDefinitions>
+							<!-- 内联字体修复区域 -->
+							<Border Margin="0,6,0,0"
+									CornerRadius="6"
+									BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+									Visibility="{Binding HasInlineFix, Converter={StaticResource BoolToVis}}">
+								<Grid>
+									<Grid.RowDefinitions>
+										<RowDefinition Height="Auto"/>
+										<RowDefinition Height="Auto"/>
+									</Grid.RowDefinitions>
 
-							<!-- 小标题 -->
-							<Border Grid.Row="0" Padding="8,4" CornerRadius="6,6,0,0"
-									Background="{DynamicResource SecondaryRegionBrush}"
-									BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-								<TextBlock Text="MText 内联字体映射（自动完成，无需手动操作）"
-										   FontSize="11" FontWeight="SemiBold"
-										   Foreground="{DynamicResource SecondaryTextBrush}"/>
+									<!-- 小标题 -->
+									<Border Grid.Row="0" Padding="8,4" CornerRadius="6,6,0,0"
+											Background="{DynamicResource SecondaryRegionBrush}"
+											BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+										<TextBlock Text="MText 内联字体映射（自动完成，无需手动操作）"
+												   FontSize="11" FontWeight="SemiBold"
+												   Foreground="{DynamicResource SecondaryTextBrush}"/>
+									</Border>
+
+									<!-- 内联修复行 -->
+									<ItemsControl Grid.Row="1" ItemsSource="{Binding InlineFixItems}">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<Border Padding="8,3"
+														BorderBrush="{DynamicResource BorderBrush}"
+														BorderThickness="0,0,0,1">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="3*"/>
+															<ColumnDefinition Width="100"/>
+															<ColumnDefinition Width="100"/>
+															<ColumnDefinition Width="2*"/>
+														</Grid.ColumnDefinitions>
+														<TextBlock Grid.Column="0" Text="{Binding MissingFont}"
+																   FontSize="11" VerticalAlignment="Center"
+																   Foreground="{DynamicResource DangerBrush}"
+																   TextTrimming="CharacterEllipsis"
+																   ToolTip="{Binding MissingFont}"/>
+														<Border Grid.Column="1" CornerRadius="3" Padding="4,1"
+																HorizontalAlignment="Center" VerticalAlignment="Center"
+																Background="{DynamicResource SuccessBrush}">
+															<TextBlock Text="{Binding FixMethod}" FontSize="9" Foreground="White"/>
+														</Border>
+														<Border Grid.Column="2" CornerRadius="3" Padding="4,1"
+																HorizontalAlignment="Center" VerticalAlignment="Center">
+															<Border.Style>
+																<Style TargetType="Border">
+																	<Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+																	<Style.Triggers>
+																		<DataTrigger Binding="{Binding FontCategory}" Value="TrueType">
+																			<Setter Property="Background" Value="{StaticResource TrueTypeBrush}"/>
+																		</DataTrigger>
+																		<DataTrigger Binding="{Binding FontCategory}" Value="SHX大字体">
+																			<Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
+																		</DataTrigger>
+																	</Style.Triggers>
+																</Style>
+															</Border.Style>
+															<TextBlock Text="{Binding FontCategory}" FontSize="9" Foreground="White"/>
+														</Border>
+														<TextBlock Grid.Column="3" Text="{Binding ReplacementFont}"
+																   FontSize="11" VerticalAlignment="Center"
+																   Foreground="{DynamicResource SuccessBrush}"
+																   TextTrimming="CharacterEllipsis"
+																   ToolTip="{Binding ReplacementFont}"/>
+													</Grid>
+												</Border>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</Grid>
 							</Border>
-
-							<!-- 内联修复行 -->
-							<ItemsControl Grid.Row="1" ItemsSource="{Binding InlineFixItems}">
-								<ItemsControl.ItemTemplate>
-									<DataTemplate>
-										<Border Padding="8,3"
-												BorderBrush="{DynamicResource BorderBrush}"
-												BorderThickness="0,0,0,1">
-											<Grid>
-												<Grid.ColumnDefinitions>
-													<ColumnDefinition Width="3*"/>
-													<ColumnDefinition Width="100"/>
-													<ColumnDefinition Width="100"/>
-													<ColumnDefinition Width="2*"/>
-												</Grid.ColumnDefinitions>
-												<TextBlock Grid.Column="0" Text="{Binding MissingFont}"
-														   FontSize="11" VerticalAlignment="Center"
-														   Foreground="{DynamicResource DangerBrush}"
-														   TextTrimming="CharacterEllipsis"
-														   ToolTip="{Binding MissingFont}"/>
-												<Border Grid.Column="1" CornerRadius="3" Padding="4,1"
-														HorizontalAlignment="Center" VerticalAlignment="Center"
-														Background="{DynamicResource SuccessBrush}">
-													<TextBlock Text="{Binding FixMethod}" FontSize="9" Foreground="White"/>
-												</Border>
-												<Border Grid.Column="2" CornerRadius="3" Padding="4,1"
-														HorizontalAlignment="Center" VerticalAlignment="Center">
-													<Border.Style>
-														<Style TargetType="Border">
-															<Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-															<Style.Triggers>
-																<DataTrigger Binding="{Binding FontCategory}" Value="TrueType">
-																	<Setter Property="Background" Value="{StaticResource TrueTypeBrush}"/>
-																</DataTrigger>
-																<DataTrigger Binding="{Binding FontCategory}" Value="SHX大字体">
-																	<Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
-																</DataTrigger>
-															</Style.Triggers>
-														</Style>
-													</Border.Style>
-													<TextBlock Text="{Binding FontCategory}" FontSize="9" Foreground="White"/>
-												</Border>
-												<TextBlock Grid.Column="3" Text="{Binding ReplacementFont}"
-														   FontSize="11" VerticalAlignment="Center"
-														   Foreground="{DynamicResource SuccessBrush}"
-														   TextTrimming="CharacterEllipsis"
-														   ToolTip="{Binding ReplacementFont}"/>
-											</Grid>
-										</Border>
-									</DataTemplate>
-								</ItemsControl.ItemTemplate>
-							</ItemsControl>
-						</Grid>
-					</Border>
-				</StackPanel>
-			</ScrollViewer>
+						</StackPanel>
+					</ScrollViewer>
+				</Grid>
+			</Border>
 
 			<!-- 底部：左侧批量操作 + 右侧按钮 -->
 			<DockPanel Grid.Row="6">
