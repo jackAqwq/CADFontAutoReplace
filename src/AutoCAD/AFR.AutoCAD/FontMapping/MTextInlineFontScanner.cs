@@ -3,16 +3,20 @@ using Autodesk.AutoCAD.DatabaseServices;
 namespace AFR.FontMapping;
 
 /// <summary>
-/// 扫描数据库中所有 MText 实体，提取内联字体引用。
-/// 遍历所有 BlockTableRecord（含 ModelSpace、PaperSpace 和嵌套块定义），
-/// 调用 MTextFontParser 解析每个 MText.Contents。
+/// 扫描 AutoCAD 数据库中所有 MText（多行文字）实体，提取其内联字体引用。
+/// <para>
+/// 遍历所有 BlockTableRecord（包括 ModelSpace、PaperSpace 和嵌套块定义），
+/// 对每个 MText 实体调用 <see cref="MTextFontParser.ParseInlineFonts"/> 解析其 Contents 属性。
+/// 无法访问的实体或块表记录会被静默跳过。
+/// </para>
 /// </summary>
 internal static class MTextInlineFontScanner
 {
     /// <summary>
     /// 扫描数据库中所有 MText 实体的内联字体引用。
-    /// 返回去重的字体名 → 字体类型映射。
     /// </summary>
+    /// <param name="db">要扫描的 AutoCAD 数据库。</param>
+    /// <returns>去重的字体名 → 字体类型映射（不区分大小写）。</returns>
     internal static Dictionary<string, InlineFontType> ScanInlineFonts(Database db)
     {
         var result = new Dictionary<string, InlineFontType>(StringComparer.OrdinalIgnoreCase);

@@ -1,12 +1,14 @@
 namespace AFR.UI;
 
 /// <summary>
-/// MText 查看器的格式转换工具。
+/// MText 格式代码查看器的格式转换工具。
+/// 将 MText 原始内容转换为更适合阅读的显示格式。
 /// </summary>
 internal static class MTextEditorViewModel
 {
     /// <summary>
-    /// 将 MText 原始内容转为显示格式（\P 后插入换行以提高可读性）。
+    /// 将 MText 原始内容转为显示格式。
+    /// 在每个 \P（段落标记）后插入换行符，使长段落在查看器中分行显示。
     /// </summary>
     internal static string ToDisplayFormat(string raw)
     {

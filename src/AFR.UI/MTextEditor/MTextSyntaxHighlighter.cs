@@ -6,8 +6,8 @@ using System.Windows.Media;
 namespace AFR.UI;
 
 /// <summary>
-/// MText 格式代码解析器。
-/// 提供原始代码语法高亮。
+/// MText 格式代码的语法高亮器。
+/// 通过正则表达式识别 MText Contents 中的格式控制代码，并应用颜色高亮。
 /// </summary>
 internal static partial class MTextSyntaxHighlighter
 {

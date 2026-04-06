@@ -11,12 +11,13 @@ using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace AFR.Commands;
 
 /// <summary>
-/// MText 查看器的 AutoCAD 命令定义。仅在 Debug 构建时可用。
+/// MText 格式代码查看器的 AutoCAD 命令定义。
+/// 仅在 Debug 构建时可用，用于开发调试时检查 MText 的内部格式代码。
 /// </summary>
 public class MTextEditorCommand
 {
     /// <summary>
-    /// AFRVIEW 命令: 选中多行文字 (MText) 并打开格式代码查看器。
+    /// AFRVIEW 命令：让用户选中一个多行文字 (MText) 对象，然后打开格式代码查看器窗口。
     /// </summary>
     [CommandMethod("AFRVIEW")]
     public void ViewMText()

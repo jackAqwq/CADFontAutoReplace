@@ -7,21 +7,29 @@ using AFR.Services;
 namespace AFR.Hosting;
 
 /// <summary>
-/// 统一执行控制器，负责字体检测与替换流程。
-/// 处理触发来源: Startup、Command、DocumentCreated。
-/// 包含重复执行防护以及 IsInitialized 门控。
+/// 统一执行控制器，协调字体检测与替换的完整流程。
+/// <para>
+/// 处理三种触发来源：Startup（插件启动）、Command（用户命令）、DocumentCreated（新建文档）。
+/// 内置重复执行防护（同一文档不会重复处理）和 IsInitialized 门控（未配置替换字体时跳过）。
+/// </para>
 /// </summary>
 internal sealed class ExecutionController
 {
     private static readonly Lazy<ExecutionController> _instance = new(() => new ExecutionController());
+    /// <summary>获取 ExecutionController 的全局唯一实例。</summary>
     public static ExecutionController Instance => _instance.Value;
 
     private ExecutionController() { }
 
     /// <summary>
-    /// 对指定文档执行字体检测与替换。
-    /// 遵守 IsInitialized 门控和重复执行防护。
+    /// 对指定文档执行字体检测与替换的完整流程。
+    /// <para>
+    /// 执行阶段：检测缺失字体 → 替换 → 二次验证 → MText 内联字体扫描 → 统计输出。
+    /// 遵守 IsInitialized 门控（未配置则跳过）和重复执行防护（同文档只执行一次）。
+    /// </para>
     /// </summary>
+    /// <param name="doc">要处理的 AutoCAD 文档。</param>
+    /// <param name="triggerSource">触发来源标识，用于诊断日志。</param>
     public void Execute(Document doc, string triggerSource)
     {
         if (doc == null || doc.IsDisposed) return;
@@ -32,26 +40,26 @@ internal sealed class ExecutionController
 
         try
         {
-            // 门控: 仅在已初始化时自动执行
+            // 门控: 仅在用户已通过 AFR 命令配置替换字体后才自动执行
             if (!config.IsInitialized)
             {
                 log.Info("请输入 AFR 命令配置替换字体。");
                 return;
             }
 
-            // 重复执行防护
+            // 重复执行防护: 同一文档在本次会话中只执行一次字体替换
             var contextMgr = DocumentContextManager.Instance;
             if (contextMgr.HasExecuted(doc)) return;
 
-            // 获取文档写入锁
+            // 获取文档写入锁 — 修改样式表需要写锁
             using (doc.LockDocument())
             {
-                // 创建独立的执行上下文 — 缓存生命周期与本次事务绑定，GC 自动回收
+                // 创建独立的字体检测上下文 — 缓存生命周期与本次执行绑定，结束后由 GC 自动回收
                 var context = new FontDetectionContext(doc.Database);
 
                 DiagnosticLogger.BeginDocument(doc.Name, config.MainFont, config.BigFont, config.TrueTypeFont);
 
-                // 第一阶段: 检测缺失字体（样式表原始状态）
+                // 第一阶段: 检测缺失字体（读取样式表原始状态，判断哪些字体在系统中不可用）
                 DiagnosticLogger.BeginPhase("检测缺失字体");
                 var missingFonts = FontDetector.DetectMissingFonts(context);
 
@@ -68,20 +76,20 @@ internal sealed class ExecutionController
                     return;
                 }
 
-                // 第二阶段: 替换缺失字体 + Regen 刷新显示
+                // 第二阶段: 将缺失字体替换为用户配置的替换字体
                 DiagnosticLogger.BeginPhase("替换缺失字体");
                 int replaceCount = FontReplacer.ReplaceMissingFonts(
                     missingFonts, config.MainFont, config.BigFont, config.TrueTypeFont, context);
                 DiagnosticLogger.EndPhase($"替换: {replaceCount}个");
 
-                // 替换后二次检测：确认哪些字体仍然缺失（替换字体不可用时会发生）
-                // 使用全新 context 避免缓存干扰
+                // 替换后二次检测：用全新 context 重新检测，确认哪些字体仍然缺失
+                // （当用户配置的替换字体本身也不可用时会出现此情况）
                 var postContext = new FontDetectionContext(doc.Database);
                 var stillMissing = FontDetector.DetectMissingFonts(postContext);
                 contextMgr.StoreStillMissingResults(doc, stillMissing);
                 DiagnosticLogger.Log("验证", $"替换后仍缺失: {stillMissing.Count}个");
 
-                // 计算未替换的字体槽位数（主字体+大字体）
+                // 计算未替换的字体槽位数（一个样式可能同时缺失主字体和大字体，各算一个槽位）
                 int stillMissingSlotCount = 0;
                 for (int i = 0; i < stillMissing.Count; i++)
                 {
@@ -89,10 +97,10 @@ internal sealed class ExecutionController
                     if (stillMissing[i].IsBigFontMissing && !stillMissing[i].IsTrueType) stillMissingSlotCount++;
                 }
 
-                // CleanupStaleShxReferences 仅在 Hook 启用时需要（防止 Hook 重定向导致内部状态不一致）
+                // 清理 Hook 可能导致的陈旧 SHX 引用（仅在 Hook 启用时需要）
                 FontReplacer.CleanupStaleShxReferences(context);
 
-                // 诊断: Regen 前验证样式表状态（确认替换是否持久化到数据库）
+                // 诊断: 在 Regen 前读回样式表，验证替换是否已持久化到数据库
                 DiagnosticLogger.BeginPhase("验证替换结果");
                 VerifyStyleTableAfterReplace(doc.Database, missingFonts);
                 DiagnosticLogger.EndPhase();

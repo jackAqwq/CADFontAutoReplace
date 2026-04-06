@@ -8,16 +8,28 @@ using AFR.Models;
 namespace AFR.Services;
 
 /// <summary>
-/// 使用配置的备用字体替换文字样式中的缺失字体。
-/// 仅修改已确认缺失的样式 — 正常字体不受影响。
+/// 使用配置的备用字体替换文字样式表中的缺失字体。
+/// <para>
+/// 仅修改已确认缺失的样式，正常字体不受影响。
+/// 替换前会预校验替换字体的可用性，不可用的替换字体会被跳过并警告用户。
+/// 支持两种替换模式：全局替换（<see cref="ReplaceMissingFonts"/>）和按样式逐一替换（<see cref="ReplaceByStyleMapping"/>）。
+/// </para>
 /// </summary>
 internal static class FontReplacer
 {
     /// <summary>
-    /// 使用指定的备用字体替换缺失字体。
-    /// TrueType 缺失 → 用 trueTypeFont 替换；SHX 缺失 → 用 mainFont 替换；大字体缺失 → 用 bigFont 替换。
-    /// 返回被修改的样式数量。
+    /// 使用全局配置的备用字体替换所有缺失字体。
+    /// <para>
+    /// 替换策略：TrueType 缺失 → 用 trueTypeFont 替换；
+    /// SHX 主字体缺失 → 用 mainFont 替换；SHX 大字体缺失 → 用 bigFont 替换。
+    /// </para>
     /// </summary>
+    /// <param name="missingFonts">缺失字体检查结果列表。</param>
+    /// <param name="mainFont">SHX 主字体替换名称。</param>
+    /// <param name="bigFont">SHX 大字体替换名称。</param>
+    /// <param name="trueTypeFont">TrueType 字体替换名称。</param>
+    /// <param name="context">字体检测上下文。</param>
+    /// <returns>被成功修改的样式数量。</returns>
     public static int ReplaceMissingFonts(
         IReadOnlyList<FontCheckResult> missingFonts,
         string mainFont,
@@ -159,9 +171,15 @@ internal static class FontReplacer
     }
 
     /// <summary>
-    /// 按样式名称与指定的替换字体进行逐一替换。
-    /// 用于手动逐一指定替换字体的场景（仅影响当前图纸，不写入注册表）。
+    /// 按样式名称与指定的替换字体进行逐一替换（AFRLOG 手动替换模式）。
+    /// <para>
+    /// 用于用户在日志界面中手动为每个样式指定不同的替换字体。
+    /// 仅影响当前图纸中的样式表，不修改注册表全局配置。
+    /// </para>
     /// </summary>
+    /// <param name="replacements">每个样式的替换规格列表。</param>
+    /// <param name="context">字体检测上下文。</param>
+    /// <returns>被成功修改的样式数量。</returns>
     public static int ReplaceByStyleMapping(
         IReadOnlyList<StyleFontReplacement> replacements,
         FontDetectionContext context)
@@ -259,12 +277,15 @@ internal static class FontReplacer
     }
 
     /// <summary>
-    /// 清理样式表中"TrueType 可用但 SHX 缺失"的残留引用。
-    /// 当样式同时有 TypeFace（已安装 TrueType）和 FileName（缺失 SHX）时，
-    /// AutoCAD 使用 TrueType 渲染，SHX 引用实际无用。
-    /// 但 Hook 会在加载阶段重定向缺失 SHX → 内部缓存与 DWG 不一致 → ST "已修改"弹窗。
-    /// 清除 FileName 可消除不一致，同时不影响渲染（TrueType 仍可用）。
+    /// 清理样式表中 TrueType 可用但 SHX 引用缺失的残留引用。
+    /// <para>
+    /// 当一个样式同时有 TypeFace（已安装的 TrueType）和 FileName（缺失的 SHX）时，
+    /// AutoCAD 使用 TrueType 渲染，SHX 引用实际无用。但 Hook 会在加载阶段将缺失 SHX
+    /// 重定向到替换字体，导致内部缓存与 DWG 实际数据不一致 → ST 弹出"已修改"提示。
+    /// 清除 FileName 可消除这种不一致，同时不影响渲染（TrueType 仍可用）。
+    /// </para>
     /// </summary>
+    /// <returns>被清理的样式数量。</returns>
     public static int CleanupStaleShxReferences(FontDetectionContext context)
     {
         var log = LogService.Instance;

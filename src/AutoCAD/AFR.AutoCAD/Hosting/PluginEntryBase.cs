@@ -9,30 +9,36 @@ using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace AFR.Hosting;
 
 /// <summary>
-/// AutoCAD 插件入口基类，实现 IExtensionApplication。
-/// 负责初始化、事件注册和生命周期管理。
-/// 各版本适配壳继承此类，提供版本特定的平台实例。
+/// AutoCAD 插件入口基类，实现 <see cref="IExtensionApplication"/> 接口。
+/// <para>
+/// 负责插件的完整生命周期管理：初始化平台服务、注册文档事件、调度字体替换执行。
+/// 各 CAD 版本适配壳（如 AFR-ACAD2026）继承此类，通过抽象方法提供版本特定的平台实例。
+/// </para>
 /// </summary>
 public abstract class PluginEntryBase : IExtensionApplication
 {
-    // 延迟执行队列：文档事件入队，等待 Idle 时统一处理
+    // ── 延迟执行队列机制 ──
+    // 文档事件（如 DocumentCreated）触发时不直接执行替换，而是入队等待 Idle 事件统一处理。
+    // 这样做是因为文档事件触发时，文档可能尚未完全加载，此时操作数据库可能失败。
     private static readonly Queue<(Document? Doc, string Trigger)> _pendingExecutions = new();
+    // 标记是否已注册 Idle 事件处理器，避免重复注册
     private static bool _idleHandlerRegistered;
+    // 标记插件是否已卸载，卸载后不再处理任何事件
     private static volatile bool _unloaded;
     private static readonly object _scheduleLock = new();
 
-    // 嵌入程序集缓存（HandyControl 等第三方依赖）
+    // 嵌入程序集缓存：HandyControl 等第三方依赖以嵌入资源形式打包在插件 DLL 中
     private static Assembly? _resolvedHandyControl;
 
-    // ── 子类必须实现 ──
+    // ── 子类必须实现：提供版本特定的平台服务 ──
 
-    /// <summary>创建当前 CAD 版本的平台常量。</summary>
+    /// <summary>创建当前 CAD 版本的平台常量实例（品牌、版本、注册表路径等）。</summary>
     protected abstract ICadPlatform CreatePlatform();
 
-    /// <summary>创建当前 CAD 版本的字体 Hook 实现。</summary>
+    /// <summary>创建当前 CAD 版本的字体 Hook 实现（拦截字体文件加载请求）。</summary>
     protected abstract IFontHook CreateFontHook();
 
-    /// <summary>创建当前 CAD 版本的宿主能力实现。</summary>
+    /// <summary>创建当前 CAD 版本的宿主能力实现（如模态窗口显示）。</summary>
     protected abstract ICadHost CreateHost();
 
     /// <summary>创建日志服务实现。默认返回 AutoCAD 命令行日志。</summary>
@@ -45,8 +51,11 @@ public abstract class PluginEntryBase : IExtensionApplication
 
     /// <summary>
     /// 从插件主程序集的嵌入资源中加载第三方依赖（如 HandyControl）。
-    /// 使用 typeof(PluginEntryBase).Assembly 获取插件程序集，
-    /// 因为 PluginEntryBase 通过 Shared Project 编译进插件 DLL。
+    /// <para>
+    /// 当 .NET 运行时找不到某个程序集时会触发此回调。
+    /// 使用 typeof(PluginEntryBase).Assembly 定位插件 DLL，
+    /// 因为 PluginEntryBase 通过 Shared Project 编译进了最终的插件 DLL 中。
+    /// </para>
     /// </summary>
     private static Assembly? OnResolveEmbeddedAssembly(object? sender, ResolveEventArgs args)
     {
@@ -65,46 +74,51 @@ public abstract class PluginEntryBase : IExtensionApplication
         return _resolvedHandyControl;
     }
 
-    // ── IExtensionApplication ──
+    // ── IExtensionApplication 实现 ──
 
+    /// <summary>
+    /// AutoCAD 加载插件时调用。按阶段依次完成：
+    /// 平台注册 → Hook 安装 → 注册表初始化 → 文档事件注册 → 延迟启动执行。
+    /// </summary>
     public void Initialize()
     {
-        // 诊断日志仅在 Debug 构建时自动启用
+        // 诊断日志仅在 Debug 构建时自动启用，用于开发调试
 #if DEBUG
         DiagnosticLogger.Enable();
 #endif
 
-        // 注册嵌入程序集解析（HandyControl 等第三方依赖）
+        // 注册嵌入程序集解析回调，使 HandyControl 等打包在 DLL 资源中的依赖可被加载
         AppDomain.CurrentDomain.AssemblyResolve += OnResolveEmbeddedAssembly;
 
-        // 第负一阶段: 注册平台 — 必须最先执行
+        // 第负一阶段: 注册平台服务 — 必须最先执行，后续所有功能依赖 PlatformManager
         PlatformManager.Initialize(CreatePlatform(), CreateFontHook(), CreateHost(), CreateLogger(), CreateFontScanner());
 
         var log = LogService.Instance;
         try
         {
-            // 第零阶段: 安装字体 Hook
+            // 第零阶段: 安装字体 Hook — 在字体加载前就位，才能拦截缺失字体请求
             if (PlatformManager.Platform.SupportsLdFileHook)
                 PlatformManager.FontHook.Install();
 
-            // 第零阶段 B: 预热系统字体索引
+            // 第零阶段 B: 预热系统字体索引 — 提前扫描可用字体，加速后续检测
             FontDetector.PrewarmSystemFonts();
 
-            // 第一阶段: 注册表初始化
+            // 第一阶段: 注册表初始化 — 检查/创建自动加载注册表项和默认配置
             bool isFirstRun = AppInitializer.Initialize();
             if (isFirstRun)
             {
+                // 首次安装时清空 AutoCAD 内置的字体映射/备用字体，避免与 AFR 冲突
                 try { AcadApp.SetSystemVariable("FONTMAP", ""); } catch { }
                 try { AcadApp.SetSystemVariable("FONTALT", "."); } catch { }
                 log.Info("首次加载，请输入 AFR 命令配置替换字体。");
             }
 
-            // 第二阶段: 注册文档事件
+            // 第二阶段: 注册文档事件 — 监听新建/关闭文档，自动触发字体替换
             var docMgr = AcadApp.DocumentManager;
             docMgr.DocumentCreated += OnDocumentCreated;
             docMgr.DocumentToBeDestroyed += OnDocumentToBeDestroyed;
 
-            // 第三阶段: 延迟启动执行
+            // 第三阶段: 延迟启动执行 — 对当前已打开的文档安排字体替换
             _unloaded = false;
             ScheduleExecution(null, "Startup");
         }
@@ -115,6 +129,7 @@ public abstract class PluginEntryBase : IExtensionApplication
         }
     }
 
+    /// <summary>AutoCAD 卸载插件时调用（通常在 CAD 退出时）。</summary>
     public void Terminate()
     {
         DiagnosticLogger.Disable();
@@ -151,8 +166,9 @@ public abstract class PluginEntryBase : IExtensionApplication
         DiagnosticLogger.Disable();
     }
 
-    // ── 事件与调度 ──
+    // ── 事件处理与延迟调度 ──
 
+    /// <summary>注销所有已注册的 AutoCAD 文档事件，防止卸载后继续触发。</summary>
     private static void UnregisterEvents()
     {
         try
@@ -164,6 +180,12 @@ public abstract class PluginEntryBase : IExtensionApplication
         catch { }
     }
 
+    /// <summary>
+    /// 将一次字体替换执行请求加入延迟队列，并确保 Idle 事件已注册。
+    /// 实际执行会在 AutoCAD 空闲时由 <see cref="OnDeferredIdle"/> 处理。
+    /// </summary>
+    /// <param name="doc">目标文档（为 null 时在 Idle 处理时取活动文档）。</param>
+    /// <param name="trigger">触发来源标识（如 "Startup"、"DocumentCreated"），用于日志。</param>
     private static void ScheduleExecution(Document? doc, string trigger)
     {
         lock (_scheduleLock)
@@ -178,6 +200,10 @@ public abstract class PluginEntryBase : IExtensionApplication
         }
     }
 
+    /// <summary>
+    /// Idle 事件回调：在 AutoCAD 空闲时批量处理延迟队列中的所有执行请求。
+    /// 每次触发后注销自身，避免持续占用 Idle 事件。
+    /// </summary>
     private static void OnDeferredIdle(object? sender, System.EventArgs e)
     {
         (Document? Doc, string Trigger)[] pending;
@@ -207,12 +233,14 @@ public abstract class PluginEntryBase : IExtensionApplication
         }
     }
 
+    /// <summary>文档创建事件：将新建的文档加入延迟执行队列。</summary>
     private static void OnDocumentCreated(object sender, DocumentCollectionEventArgs e)
     {
         if (e.Document != null)
             ScheduleExecution(e.Document, "DocumentCreated");
     }
 
+    /// <summary>文档即将销毁事件：清理该文档的执行记录和检测结果缓存。</summary>
     private static void OnDocumentToBeDestroyed(object sender, DocumentCollectionEventArgs e)
     {
         try

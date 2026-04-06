@@ -8,56 +8,72 @@ using AFR.Services;
 namespace AFR.FontMapping;
 
 /// <summary>
-/// Hook acdb25.dll 的 ldfile 函数，在 DWG 解析阶段拦截缺失字体文件加载。
-///
-/// 设计原理：
-///   DWG 解析阶段: Hook 按字体类型分流重定向 —
-///     .shx 后缀 → 用配置的 SHX 替换字体（MainFont / BigFont）
-///     非 .shx（TrueType 字族名）→ 用配置的 TrueType 替换字体
-///   Execute 阶段: FontReplacer 覆盖样式表字体，用户可通过 ST/AFRLOG 随时调整。
-///
-/// 关键约束：
-///   对 TrueType 字族名（样式表回退或 MText 内联 \f）必须重定向到 TrueType 替换字体，
-///   而非 SHX。若将 TrueType 误重定向为 SHX，会污染 AutoCAD 内部字体缓存，
-///   导致 FontReplacer 的 TrueType 替换与缓存冲突（文字乱码 + ST 弹窗）。
+/// 通过 Hook acdb DLL 的 ldfile 函数，在 DWG 文件解析阶段拦截字体文件加载请求。
+/// <para>
+/// 设计原理（两阶段协作）：
+/// <list type="bullet">
+///   <item>DWG 解析阶段（本类负责）：Hook 拦截字体加载，按类型分流重定向 —
+///     .shx 后缀 → 用配置的 SHX 替换字体（MainFont / BigFont）；
+///     非 .shx（TrueType 字族名）→ 用配置的 TrueType 替换字体。</item>
+///   <item>Execute 阶段（FontReplacer 负责）：覆盖样式表字体，用户可通过 ST/AFRLOG 随时调整。</item>
+/// </list>
+/// </para>
+/// <para>
+/// 关键约束：对 TrueType 字族名必须重定向到 TrueType 替换字体，而非 SHX。
+/// 若将 TrueType 误重定向为 SHX，会污染 AutoCAD 内部字体缓存，
+/// 导致 FontReplacer 的 TrueType 替换与缓存冲突（表现为文字乱码 + ST 弹窗）。
+/// </para>
 /// </summary>
 internal static class LdFileHook
 {
+    // 从平台常量获取目标 DLL 名、导出函数名、序言长度
     private static string AcDbDll => PlatformManager.Platform.AcDbDllName;
     private static string LdFileExport => PlatformManager.Platform.LdFileExport;
     private static int PrologueSize => PlatformManager.Platform.PrologueSize;
 
+    // ldfile 原始函数签名：int ldfile(wchar_t* fileName, int param2, void* db, void* desc)
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int LdFileDelegate(IntPtr fileName, int param2, IntPtr db, IntPtr desc);
 
-    // Hook 基础设施
-    private static LdFileDelegate? _hookDelegate;
-    private static LdFileDelegate? _trampolineDelegate;
-    private static IntPtr _targetAddr;
-    private static IntPtr _trampolineAddr;
-    private static byte[]? _savedBytes;
+    // ── Hook 基础设施 ──
+    private static LdFileDelegate? _hookDelegate;       // 指向 HookHandler 的委托（防 GC 回收）
+    private static LdFileDelegate? _trampolineDelegate;  // 指向 Trampoline 的委托（用于调用原始函数）
+    private static IntPtr _targetAddr;                   // 原始 ldfile 函数地址
+    private static IntPtr _trampolineAddr;               // Trampoline 内存地址
+    private static byte[]? _savedBytes;                  // 被覆盖的原始字节（卸载时恢复）
     private static volatile bool _installed;
 
     internal static bool IsInstalled => _installed;
 
-    // 字体解析状态
+    // ── 字体解析状态 ──
+    // 可用字体集合：包含 SHX 文件名 + TrueType 文件名 + 系统字族名
     private static readonly HashSet<string> _availableFonts = new(StringComparer.OrdinalIgnoreCase);
+    // 已识别的大字体 SHX 文件名集合（通过读取 SHX 文件头判断）
     private static readonly HashSet<string> _bigFontFiles = new(StringComparer.OrdinalIgnoreCase);
+    // 用户配置的替换字体（运行时副本）
     private static string _repMainFont = "";
     private static string _repBigFont = "";
     private static string _repTrueTypeFont = "";
+    // 防递归标志：避免 HookHandler 内部调用 Trampoline 时再次触发 Hook
     [ThreadStatic] private static bool _inHook;
 
-    // 记录本次会话的重定向: fontName → (replacement, fontType)
+    // 重定向日志：记录本次会话中所有被重定向的字体，供 MText 内联字体交叉比对
+    // Key: 归一化字体名（小写 + .shx 后缀 / TrueType 原名）
+    // Value: (替换字体名, ldfile param2 字体类型)
     private static readonly ConcurrentDictionary<string, (string Replacement, int FontType)> _redirectLog = new(StringComparer.OrdinalIgnoreCase);
 
-    // 重定向字体名的原生指针缓存 — 必须保持存活，不能释放
-    // ldfile 可能将 fileName 指针存入 AcFontDescription 或全局字体表，
-    // 若释放则成为悬空指针，导致后续字体类型判断读取垃圾数据。
+    // 重定向字体名的原生指针缓存 — 必须保持存活，绝对不能释放
+    // 原因：ldfile 可能将 fileName 指针存入 AcFontDescription 或全局字体表，
+    // 若释放则成为悬空指针，后续字体类型判断会读取垃圾数据。
     private static readonly ConcurrentDictionary<string, IntPtr> _nativeStringCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 安装 ldfile Hook。必须在任何文档打开之前调用（PluginEntry.Initialize）。
+    /// 安装 ldfile Hook。
+    /// <para>
+    /// 通过 Inline Hook 技术覆盖 ldfile 函数入口：
+    /// 保存原始指令 → 创建 Trampoline（原始指令 + 跳回）→ 覆盖入口为跳转到 HookHandler。
+    /// 必须在任何文档打开之前调用（在 PluginEntry.Initialize 中执行）。
+    /// </para>
     /// </summary>
     internal static void Install()
     {
@@ -71,7 +87,7 @@ internal static class LdFileHook
             _targetAddr = GetProcAddress(module, LdFileExport);
             if (_targetAddr == IntPtr.Zero) { DiagnosticLogger.Log("FontMapping", "未找到 ldfile 导出"); return; }
 
-            // 加载用户配置
+            // 加载用户配置的替换字体（SHX 需要确保 .shx 后缀）
             var config = ConfigService.Instance;
             if (!string.IsNullOrEmpty(config.MainFont))
                 _repMainFont = EnsureShx(config.MainFont);
@@ -86,39 +102,43 @@ internal static class LdFileHook
                 return;
             }
 
-            // 扫描可用字体
+            // 扫描系统中可用的字体文件，构建 _availableFonts 和 _bigFontFiles 集合
             ScanAvailableFonts();
 
-            // 保存原始字节
+            // --- Inline Hook 安装流程 ---
+            // 第一步：保存原始函数入口的指令字节（卸载时恢复）
             _savedBytes = new byte[PrologueSize];
             Marshal.Copy(_targetAddr, _savedBytes, 0, PrologueSize);
 
-            // 创建 Trampoline
-            int trampolineSize = PrologueSize + 14; // 14 = absolute JMP
+            // 第二步：创建 Trampoline（跳板）— 一小块可执行内存，包含原始指令 + 跳回原函数
+            int trampolineSize = PrologueSize + 14; // 14 字节 = 64 位绝对跳转指令
             _trampolineAddr = VirtualAlloc(IntPtr.Zero, (uint)trampolineSize,
                 0x3000 /* MEM_COMMIT | MEM_RESERVE */, 0x40 /* PAGE_EXECUTE_READWRITE */);
             if (_trampolineAddr == IntPtr.Zero) { DiagnosticLogger.Log("FontMapping", "VirtualAlloc 失败"); return; }
 
-            // 复制原始指令到 Trampoline
+            // 将原始指令复制到 Trampoline 头部
             Marshal.Copy(_savedBytes, 0, _trampolineAddr, PrologueSize);
 
-            // 写入 JMP 回原函数 + PrologueSize
+            // 在 Trampoline 尾部写入跳转指令，跳回原函数被覆盖部分之后的位置
             WriteAbsoluteJump(_trampolineAddr + PrologueSize, _targetAddr + PrologueSize);
 
+            // 将 Trampoline 地址包装为委托，供 HookHandler 调用原始函数
             _trampolineDelegate = Marshal.GetDelegateForFunctionPointer<LdFileDelegate>(_trampolineAddr);
 
-            // 覆盖原函数入口 → JMP 到 HookHandler
+            // 第三步：覆盖原函数入口 → 跳转到 HookHandler
             _hookDelegate = HookHandler;
             IntPtr hookAddr = Marshal.GetFunctionPointerForDelegate(_hookDelegate);
 
+            // 修改原函数入口的内存保护属性为可读写可执行
             VirtualProtect(_targetAddr, (uint)PrologueSize, 0x40, out uint oldProtect);
 
-            // 用 NOP 填充，然后写入 JMP
+            // 先用 NOP 填充整个序言区域，再写入跳转指令（确保不留残余的旧指令）
             byte[] hookPatch = new byte[PrologueSize];
             Array.Fill(hookPatch, (byte)0x90);
             WriteAbsoluteJumpBytes(hookPatch, 0, hookAddr);
             Marshal.Copy(hookPatch, 0, _targetAddr, PrologueSize);
 
+            // 恢复原始内存保护属性
             VirtualProtect(_targetAddr, (uint)PrologueSize, oldProtect, out _);
 
             _installed = true;
@@ -131,7 +151,7 @@ internal static class LdFileHook
     }
 
     /// <summary>
-    /// 卸载 Hook，恢复原始函数。
+    /// 卸载 Hook，将原始函数入口恢复为安装前的字节，并释放 Trampoline 内存。
     /// </summary>
     internal static void Uninstall()
     {
@@ -176,17 +196,20 @@ internal static class LdFileHook
 
     #region Hook Handler
 
-    // ldfile param2 字体类型常量（基于 AutoCAD 2026 诊断日志实测验证）
-    // param2=0: 常规 SHX 主字体
-    // param2=2: SHX 形文件（Shape File）
-    // param2=4: SHX 大字体（Big Font）
-    private const int FontTypeRegular = 0;
-    private const int FontTypeShape = 2;
-    private const int FontTypeBigFont = 4;
+    // ldfile param2 字体类型常量（基于 AutoCAD 2026 实测验证）
+    private const int FontTypeRegular = 0;   // 常规 SHX 主字体
+    private const int FontTypeShape = 2;     // SHX 形文件（Shape File，如线型符号）
+    private const int FontTypeBigFont = 4;   // SHX 大字体（Big Font，用于东亚字符）
 
+    /// <summary>
+    /// Hook 核心处理函数：拦截每次字体文件加载请求，判断是否需要重定向。
+    /// <para>
+    /// 处理流程：防递归检查 → 形文件放行 → 字体存在性检查 → 按类型选择替换策略。
+    /// </para>
+    /// </summary>
     private static int HookHandler(IntPtr fileName, int param2, IntPtr db, IntPtr desc)
     {
-        // 防止递归
+        // 防止递归：HookHandler 通过 Trampoline 调用原始函数时，不应再次触发 Hook
         if (_inHook || _trampolineDelegate == null)
             return _trampolineDelegate?.Invoke(fileName, param2, db, desc) ?? -1;
 
@@ -214,11 +237,11 @@ internal static class LdFileHook
                 return _trampolineDelegate(fileName, param2, db, desc);
 
             // 字体缺失 → 按字体类型选择替换策略
-            // 常规 SHX 主字体（param2=0）→ 由 FONTALT 原生机制处理，不通过 Hook
-            //   原因: Hook 的 native 级别重定向会干扰块参照的字体缓存渲染
-            //   注意: AutoCAD 可能传入不带 .shx 后缀的字体名（如 'REALSZ'、'2'），仅靠 param2 判断
-            // SHX 大字体（param2=4）→ Hook 处理（FONTALT 不区分大/主字体）
-            // TrueType（非 .shx 且非大字体）→ Hook 处理（FONTALT 不处理 TrueType）
+            // 常规 SHX 主字体（param2=0）→ 放行给 FONTALT 原生机制处理，不通过 Hook 重定向
+            //   原因: Hook 级别的重定向会干扰块参照的字体缓存渲染
+            //   注意: AutoCAD 可能传入不带 .shx 后缀的字体名（如 'REALSZ'、'2'）
+            // SHX 大字体（param2=4）→ Hook 处理（FONTALT 不区分大/主字体，无法正确替换）
+            // TrueType（非 .shx 且非大字体）→ Hook 处理（FONTALT 不处理 TrueType 字族名）
             bool isShxRequest = fontName.EndsWith(".shx", StringComparison.OrdinalIgnoreCase);
 
             // 常规主字体 → 放行，由 FONTALT 处理
@@ -332,6 +355,10 @@ internal static class LdFileHook
 
     #region 字体扫描
 
+    /// <summary>
+    /// 扫描所有可能包含字体文件的目录，构建可用字体集合。
+    /// 扫描范围：AutoCAD 安装目录 Fonts → 用户支持路径 → 系统 TrueType 字族名 → Windows 系统字体目录。
+    /// </summary>
     private static void ScanAvailableFonts()
     {
         // AutoCAD 安装目录 Fonts
@@ -390,6 +417,10 @@ internal static class LdFileHook
         catch { }
     }
 
+    /// <summary>
+    /// 扫描指定目录中的字体文件（.shx / .ttf / .ttc），将文件名加入可用字体集合。
+    /// SHX 文件还会通过 <see cref="ClassifyShxFont"/> 读取文件头判断是否为大字体。
+    /// </summary>
     private static void ScanDirectory(string dir)
     {
         if (!Directory.Exists(dir)) return;
@@ -438,16 +469,19 @@ internal static class LdFileHook
 
     #region 底层工具
 
+    /// <summary>确保字体名以 .shx 后缀结尾（若已有则不重复添加）。</summary>
     private static string EnsureShx(string name) =>
         name.EndsWith(".shx", StringComparison.OrdinalIgnoreCase) ? name : name + ".shx";
 
+    /// <summary>判断字体名是否为 TrueType 文件名（以 .ttf / .ttc / .otf 结尾）。</summary>
     private static bool IsTrueTypeName(string name) =>
         name.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
         name.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
         name.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 在指定内存地址写入 14 字节的绝对跳转 (FF 25 + 8 字节地址)。
+    /// 在指定内存地址写入 14 字节的 64 位绝对跳转指令。
+    /// 指令格式: FF 25 00 00 00 00 [8字节目标地址]（JMP [RIP+0]，后跟内联地址）。
     /// </summary>
     private static void WriteAbsoluteJump(IntPtr location, IntPtr target)
     {
@@ -456,6 +490,7 @@ internal static class LdFileHook
         Marshal.Copy(jmp, 0, location, 14);
     }
 
+    /// <summary>将 14 字节绝对跳转指令写入字节数组的指定偏移位置。</summary>
     private static void WriteAbsoluteJumpBytes(byte[] buffer, int offset, IntPtr target)
     {
         buffer[offset] = 0xFF;

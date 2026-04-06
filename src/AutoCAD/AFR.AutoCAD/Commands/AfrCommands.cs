@@ -11,12 +11,13 @@ namespace AFR.Commands;
 
 /// <summary>
 /// AFR 插件的 AutoCAD 命令定义。
+/// 包含三个命令：AFR（配置替换字体）、AFRLOG（查看日志/手动替换）、AFRUNLOAD（卸载插件）。
 /// </summary>
 public class AfrCommands
 {
     /// <summary>
-    /// AFR 命令: 打开字体配置界面，保存设置，
-    /// 设置 IsInitialized = 1，并对当前文档执行字体替换。
+    /// AFR 命令：打开字体配置界面，让用户选择 SHX/TrueType 替换字体。
+    /// 保存配置后标记 IsInitialized = 1，并立即对当前文档执行一次字体替换。
     /// </summary>
     [CommandMethod("AFR")]
     public void AfrCommand()
@@ -34,7 +35,7 @@ public class AfrCommands
                 return;
             }
 
-            // 保存配置
+            // 保存用户选择的替换字体到注册表
             var config = ConfigService.Instance;
             config.MainFont = window.SelectedMainFont;
             config.BigFont = window.SelectedBigFont;
@@ -43,10 +44,10 @@ public class AfrCommands
             DiagnosticLogger.Info("命令",
                 $"配置已保存: MainFont='{config.MainFont}' BigFont='{config.BigFont}' TrueType='{config.TrueTypeFont}'");
 
-            // 更新 Hook 的替换字体配置
+            // 更新 Hook 的替换字体配置，使新配置在后续字体加载时生效
             PlatformManager.FontHook.UpdateConfig();
 
-            // 对当前文档执行字体替换
+            // 对当前文档立即执行字体替换
             var doc = AcadApp.DocumentManager.MdiActiveDocument;
             if (doc != null)
             {
@@ -67,9 +68,12 @@ public class AfrCommands
     }
 
     /// <summary>
-    /// AFRLOG 命令: 打开字体替换日志界面。
-    /// 显示缺失字体检测结果，支持手动逐一指定替换字体（仅影响当前图纸，不写入注册表）。
-    /// 每次打开时重新检测，反映 ST 命令等外部修改后的最新状态。
+    /// AFRLOG 命令：打开字体替换日志界面。
+    /// <para>
+    /// 显示当前文档的缺失字体检测结果和 MText 内联修复记录。
+    /// 用户可在界面中手动逐一指定替换字体（仅影响当前图纸，不写入注册表全局配置）。
+    /// 每次打开时重新检测数据库，以反映 ST 命令等外部修改后的最新状态。
+    /// </para>
     /// </summary>
     [CommandMethod("AFRLOG")]
     public void AfrLogCommand()
@@ -93,29 +97,30 @@ public class AfrCommands
 
             using (doc.LockDocument())
             {
-                // 创建独立的执行上下文 — 每次 AFRLOG 命令使用全新缓存
+                // 每次 AFRLOG 命令使用全新检测上下文，避免缓存导致结果不准确
                 var context = new FontDetectionContext(doc.Database);
 
-                // 从数据库重新检测当前缺失字体
+                // 重新检测当前文档中的缺失字体（反映替换或 ST 命令修改后的最新状态）
                 var currentMissing = FontDetector.DetectMissingFonts(context);
 
-                // 合并策略：以存储的原始检测结果为基础，用当前检测标记仍缺失的样式
+                // 合并策略：以存储的原始检测结果（自动替换时保存的）为基础，
+                // 用当前检测结果标记哪些样式仍然缺失，这样已替换的字体也能在日志中显示
                 var stored = DocumentContextManager.Instance.GetDetectionResults(doc);
                 DiagnosticLogger.Info("AFRLOG",
                     $"检测完成: 存储={stored?.Count ?? 0}条 当前缺失={currentMissing.Count}条");
 
                 if (stored != null && stored.Count > 0)
                 {
-                    // 以原始检测结果为基础，确保已替换的字体也能显示
+                    // 有存储结果时以其为基础，确保已替换的字体也能在日志中显示
                     results = stored;
-                    // 构建仍缺失的样式名集合
+                    // 构建仍缺失的样式名集合，用于在 UI 中高亮标记
                     stillMissingStyleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     for (int i = 0; i < currentMissing.Count; i++)
                         stillMissingStyleNames.Add(currentMissing[i].StyleName);
                 }
                 else
                 {
-                    // 无存储结果（首次打开 AFRLOG 且未执行过自动替换）
+                    // 无存储结果：首次打开 AFRLOG 且未执行过自动替换，直接使用当前检测结果
                     results = currentMissing;
                     if (currentMissing.Count > 0)
                     {
@@ -126,13 +131,14 @@ public class AfrCommands
                     }
                 }
 
-                // 读取图纸中各样式的当前实际字体（反映替换/ST命令修改后的状态）
+                // 读取图纸中各样式的当前实际字体信息（替换后或 ST 命令修改后的状态）
                 if (results.Count > 0)
                 {
                     currentFonts = FontDetector.ReadCurrentFontAssignments(doc.Database);
                 }
             }
 
+            // 构建 ViewModel 并创建日志窗口
             var config = ConfigService.Instance;
             var inlineFixResults = DocumentContextManager.Instance.GetInlineFontFixResults(doc);
             var vm = new FontReplacementLogViewModel(
@@ -142,6 +148,7 @@ public class AfrCommands
             DiagnosticLogger.Info("AFRLOG",
                 $"ViewModel 构建完成: Items={vm.Items.Count} 未替换={vm.FailedCount} 已替换={vm.ReplacedCount}");
 
+            // 注册手动替换回调：当用户在日志界面中点击"替换"时执行
             var window = new FontReplacementLogWindow(vm);
             window.ApplyReplacementsHandler = replacements =>
             {
@@ -155,7 +162,7 @@ public class AfrCommands
 
                 using (doc.LockDocument())
                 {
-                    // 手动替换也使用独立上下文
+                    // 手动替换使用独立上下文，避免与自动替换的缓存冲突
                     var replaceContext = new FontDetectionContext(doc.Database);
                     int count = FontReplacer.ReplaceByStyleMapping(replacements, replaceContext);
                     DiagnosticLogger.Info("AFRLOG", $"ReplaceByStyleMapping 返回: {count}");
@@ -184,9 +191,11 @@ public class AfrCommands
     }
 
     /// <summary>
-    /// AFRUNLOAD 命令: 完整卸载插件。
-    /// 注销所有事件监听、删除 AFR-ACAD2026 注册表项、清空运行状态。
-    /// 卸载后插件不再自动运行，用户可从其他路径重新加载。
+    /// AFRUNLOAD 命令：完整卸载 AFR 插件。
+    /// <para>
+    /// 依次执行：注销所有事件监听 → 删除注册表自动加载条目 → 清空运行状态。
+    /// 卸载后插件不再随 CAD 启动自动加载，用户可通过 NETLOAD 命令重新加载。
+    /// </para>
     /// </summary>
     [CommandMethod("AFRUNLOAD")]
     public void AfrUnloadCommand()
@@ -196,10 +205,10 @@ public class AfrCommands
 
         try
         {
-            // 第一步：注销事件、清空队列和文档跟踪
+            // 第一步：注销事件监听、卸载 Hook、清空文档跟踪和执行队列
             PluginEntryBase.Unload();
 
-            // 第二步：删除注册表项（仅 AFR-ACAD2026）
+            // 第二步：删除注册表中的自动加载条目
             var config = ConfigService.Instance;
             config.DeleteAllApplicationKeys();
 

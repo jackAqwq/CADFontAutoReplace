@@ -10,14 +10,24 @@ namespace AFR.Services;
 
 /// <summary>
 /// 检测图纸 TextStyleTable 中的缺失字体。
-/// 所有缓存通过 FontDetectionContext 实例管理，单次事务结束后由 GC 回收。
+/// <para>
+/// 遍历所有文字样式，通过多重验证（系统字体索引、FindFile、SHX 文件头分类）
+/// 判断每个样式引用的主字体和大字体是否在当前环境中可用。
+/// 所有缓存通过 <see cref="FontDetectionContext"/> 实例管理，单次事务结束后由 GC 回收。
+/// </para>
 /// </summary>
 internal static class FontDetector
 {
+    // 在后台线程异步构建系统字体索引（字族名集合），供 IsSystemFont 快速查询
     private static readonly Task<HashSet<string>> _systemFontNamesTask = Task.Run(BuildSystemFontIndex);
 
+    /// <summary>预热系统字体索引。调用此方法会触发后台索引构建（如果尚未开始）。</summary>
     public static void PrewarmSystemFonts() { }
 
+    /// <summary>
+    /// 检查指定名称是否为已安装的系统 TrueType 字族名。
+    /// 索引尚未就绪时返回 false（保守策略）。
+    /// </summary>
     public static bool IsSystemFont(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
@@ -25,10 +35,20 @@ internal static class FontDetector
         return task.IsCompletedSuccessfully && task.Result.Contains(name);
     }
 
+    /// <summary>系统字体索引是否已构建完成且包含有效数据。</summary>
     public static bool IsSystemFontIndexReady
         => _systemFontNamesTask.IsCompletedSuccessfully
            && _systemFontNamesTask.Result.Count > 0;
 
+    /// <summary>
+    /// 检测指定数据库中所有文字样式的缺失字体。
+    /// <para>
+    /// 对每个样式判断：TrueType 字族名是否可用、SHX 主字体是否存在、
+    /// SHX 大字体是否存在且类型匹配。ShapeFile 样式（用于复杂线型）自动跳过。
+    /// </para>
+    /// </summary>
+    /// <param name="context">字体检测上下文，提供数据库引用和查询缓存。</param>
+    /// <returns>缺失字体的检查结果列表，空列表表示无缺失。</returns>
     public static List<FontCheckResult> DetectMissingFonts(FontDetectionContext context)
     {
         var results = new List<FontCheckResult>();
@@ -101,6 +121,10 @@ internal static class FontDetector
         return results;
     }
 
+    /// <summary>
+    /// 收集数据库样式表中所有被引用的字体文件名（FileName + BigFontFileName）。
+    /// 用于辅助判断哪些字体在图纸中被使用。
+    /// </summary>
     public static HashSet<string> CollectStyleTableFontNames(Database db)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -120,6 +144,10 @@ internal static class FontDetector
         return names;
     }
 
+    /// <summary>
+    /// 读取数据库中所有文字样式当前实际的字体赋值（FileName、BigFontFileName、TypeFace）。
+    /// 返回值反映替换后或 ST 命令修改后的最新状态，供 AFRLOG 界面展示。
+    /// </summary>
     public static Dictionary<string, (string FileName, string BigFontFileName, string TypeFace)> ReadCurrentFontAssignments(Database db)
     {
         var result = new Dictionary<string, (string, string, string)>(StringComparer.OrdinalIgnoreCase);
@@ -140,6 +168,10 @@ internal static class FontDetector
         return result;
     }
 
+    /// <summary>
+    /// 检查 SHX 字体文件是否在 AutoCAD 搜索路径中可用。
+    /// 通过 <see cref="HostApplicationServices.FindFile"/> 查找，结果缓存在 context 中。
+    /// </summary>
     internal static bool IsShxFontAvailable(string fileName, FontDetectionContext context)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return true;
@@ -149,9 +181,14 @@ internal static class FontDetector
         return false;
     }
 
+    /// <summary>检查 TrueType 字体是否可用（仅字族名版本，无 FileName 辅助）。</summary>
     internal static bool IsTrueTypeFontAvailable(string typeface, FontDetectionContext context)
         => IsTrueTypeFontAvailable(typeface, string.Empty, context);
 
+    /// <summary>
+    /// 检查 TrueType 字体是否可用。
+    /// 依次通过：系统字体索引 → FindFile（FileName）→ FindFile（.ttf/.ttc）→ WPF 本地化名称反查。
+    /// </summary>
     private static bool IsTrueTypeFontAvailable(string typeface, string fileName, FontDetectionContext context)
     {
         if (string.IsNullOrWhiteSpace(typeface)) return true;
@@ -176,6 +213,7 @@ internal static class FontDetector
         return false;
     }
 
+    /// <summary>通过 HostApplicationServices.FindFile 查找字体文件，结果缓存在 context 中。</summary>
     private static bool TryFindFile(string fileName, FontDetectionContext context, FindFileHint hint)
     {
         var cacheKey = string.Concat(((int)hint).ToString(), ":", fileName);
@@ -187,6 +225,7 @@ internal static class FontDetector
         return found;
     }
 
+    /// <summary>通过 FindFile 查找字体文件并返回完整路径，找不到返回 null。</summary>
     private static string? TryFindFilePath(string fileName, FontDetectionContext context, FindFileHint hint)
     {
         try
@@ -204,6 +243,10 @@ internal static class FontDetector
         return null;
     }
 
+    /// <summary>
+    /// 检查 SHX 字体文件的实际类型（主字体/大字体）是否与期望类型匹配。
+    /// 不匹配时返回 true，表示虽然文件存在但类型错误（如主字体槽位引用了大字体文件）。
+    /// </summary>
     internal static bool IsShxTypeMismatch(string fileName, FontDetectionContext context, bool expectBigFont)
     {
         string? filePath = TryFindFilePath(fileName, context, FindFileHint.CompiledShapeFile);
@@ -216,6 +259,10 @@ internal static class FontDetector
         return expectBigFont != classified.Value;
     }
 
+    /// <summary>
+    /// 读取 SHX 文件头判断是否为大字体文件，结果缓存在 context 中。
+    /// 返回 null 表示文件读取失败。
+    /// </summary>
     private static bool? ClassifyShxFile(string filePath, FontDetectionContext context)
     {
         if (context.ShxTypeCache.TryGetValue(filePath, out bool cached)) return cached;
@@ -232,6 +279,7 @@ internal static class FontDetector
         return isBigFont;
     }
 
+    /// <summary>去除路径前缀，仅保留文件名并去除首尾空白。</summary>
     private static string NormalizeFontName(string name) => Path.GetFileName(name.Trim());
 
     /// <summary>
@@ -243,6 +291,9 @@ internal static class FontDetector
             fileName.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) ||
             fileName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// 后台构建系统字体索引：枚举所有已安装的 TrueType 字族名（含本地化名称）。
+    /// </summary>
     private static HashSet<string> BuildSystemFontIndex()
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -260,6 +311,10 @@ internal static class FontDetector
 
     #region TrueType 字体特征查询
 
+    /// <summary>
+    /// 通过 GDI API 查询 TrueType 字体的 CharacterSet 和 PitchAndFamily 属性。
+    /// 这些值用于构造 <see cref="FontDescriptor"/>，确保 AutoCAD 能正确匹配字体特征。
+    /// </summary>
     public static (int CharacterSet, int PitchAndFamily) GetTrueTypeFontMetrics(string fontName, FontDetectionContext context)
     {
         if (string.IsNullOrEmpty(fontName)) return (0, 0);
@@ -275,6 +330,7 @@ internal static class FontDetector
         return result;
     }
 
+    /// <summary>通过 Win32 GDI API 查询指定字体的 TEXTMETRIC 信息。</summary>
     private static (int CharacterSet, int PitchAndFamily) QueryFontMetricsFromGdi(string fontName)
     {
         IntPtr hdc = IntPtr.Zero, hFont = IntPtr.Zero, oldFont = IntPtr.Zero;

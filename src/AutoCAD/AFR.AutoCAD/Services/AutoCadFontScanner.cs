@@ -8,15 +8,23 @@ using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace AFR.Services;
 
 /// <summary>
-/// AutoCAD 平台的字体扫描实现。
-/// 扫描 AutoCAD 搜索路径下的 SHX 字体和系统 TrueType 字体。
+/// AutoCAD 平台的 <see cref="IFontScanner"/> 实现。
+/// <para>
+/// 扫描 AutoCAD 搜索路径（ACADPREFIX）和安装目录下的 SHX 字体，
+/// 以及系统已安装的 TrueType 字体（优先返回中文本地化名称）。
 /// 使用会话级缓存 — 字体列表在 CAD 运行期间不变，只扫描一次。
+/// </para>
 /// </summary>
 internal sealed class AutoCadFontScanner : IFontScanner
 {
+    // 会话级缓存：首次扫描后结果不再变化
     private static SortedSet<string>? _cachedShxFonts;
     private static SortedSet<string>? _cachedTrueTypeFonts;
 
+    /// <summary>
+    /// 扫描 AutoCAD 搜索路径下的可用 SHX 字体文件名。
+    /// 扫描范围：ACADPREFIX 系统变量指定的所有目录 + AutoCAD 安装目录的 Fonts 文件夹。
+    /// </summary>
     public IReadOnlyCollection<string> ScanAvailableShxFonts()
     {
         if (_cachedShxFonts != null) return _cachedShxFonts;
@@ -54,6 +62,10 @@ internal sealed class AutoCadFontScanner : IFontScanner
         return fonts;
     }
 
+    /// <summary>
+    /// 扫描系统已安装的 TrueType 字体，返回中文本地化名称（如"宋体"）。
+    /// 会过滤掉无中文名称的字体、包含非法字符的名称，以及文件名与显示名不匹配的伪名称。
+    /// </summary>
     public IReadOnlyCollection<string> ScanSystemTrueTypeFonts()
     {
         if (_cachedTrueTypeFonts != null) return _cachedTrueTypeFonts;
@@ -91,6 +103,11 @@ internal sealed class AutoCadFontScanner : IFontScanner
         return fonts;
     }
 
+    /// <summary>
+    /// 验证字体显示名称与实际字体文件的匹配性。
+    /// 当文件名和显示名都包含 CJK 字符时，要求至少有一个共同的汉字，
+    /// 防止系统返回不正确的本地化名称。
+    /// </summary>
     private static bool ValidateFontName(FontFamily family, string displayName)
     {
         try
@@ -122,6 +139,7 @@ internal sealed class AutoCadFontScanner : IFontScanner
         }
     }
 
+    /// <summary>检查字符串是否包含 CJK 统一汉字（U+4E00 ~ U+9FFF）。</summary>
     private static bool ContainsCjk(string s)
     {
         foreach (char c in s)
@@ -131,6 +149,10 @@ internal sealed class AutoCadFontScanner : IFontScanner
         return false;
     }
 
+    /// <summary>
+    /// 检查字体名称是否包含非法字符。
+    /// 允许：字母、数字、空格、连字符、下划线、括号、点号、中间点。
+    /// </summary>
     private static bool HasInvalidChars(string name)
     {
         foreach (char c in name)
@@ -148,6 +170,7 @@ internal sealed class AutoCadFontScanner : IFontScanner
         return false;
     }
 
+    /// <summary>扫描指定目录中匹配模式的字体文件，将文件名加入结果集合。</summary>
     private static void ScanDirectory(string directory, string pattern, SortedSet<string> results)
     {
         if (!Directory.Exists(directory)) return;

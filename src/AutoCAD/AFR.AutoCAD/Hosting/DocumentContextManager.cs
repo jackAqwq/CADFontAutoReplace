@@ -6,26 +6,37 @@ using AFR.Services;
 namespace AFR.Hosting;
 
 /// <summary>
-/// 跟踪已处理的文档，防止重复执行。
-/// 使用 Dictionary 按 Database.Filename 唯一标识每个图纸，
-/// 未保存图纸使用 Document.Name 作为临时标识。
-/// 线程安全的单例模式，支持文档关闭时清理。
+/// 文档上下文管理器，跟踪已处理的文档并存储每个文档的检测/替换结果。
+/// <para>
+/// 核心职责：
+/// <list type="bullet">
+///   <item>防止对同一文档重复执行字体替换（通过 <see cref="HasExecuted"/>/<see cref="MarkExecuted"/> 控制）；</item>
+///   <item>存储每个文档的缺失字体检测结果、替换后仍缺失的结果、MText 内联修复记录，供 AFRLOG 命令查询。</item>
+/// </list>
+/// 使用 Database.Filename 作为已保存图纸的唯一标识，未保存图纸回退到 Document.Name。
+/// 线程安全的全局单例，支持文档关闭时清理。
+/// </para>
 /// </summary>
 internal sealed class DocumentContextManager
 {
     private static readonly Lazy<DocumentContextManager> _instance = new(() => new DocumentContextManager());
+    /// <summary>获取 DocumentContextManager 的全局唯一实例。</summary>
     public static DocumentContextManager Instance => _instance.Value;
 
-    // Key: 图纸唯一标识（Database.Filename 或临时标识）
-    // Value: 首次处理时间
+    // Key: 图纸唯一标识（已保存 = Database.Filename，未保存 = Document.Name）
+    // Value: 首次执行字体替换的时间戳
     private readonly Dictionary<string, DateTime> _executedDocuments = new(StringComparer.OrdinalIgnoreCase);
+    // 缺失字体检测结果（替换前的原始状态）
     private readonly Dictionary<string, List<FontCheckResult>> _detectionResults = new(StringComparer.OrdinalIgnoreCase);
+    // 替换后仍然缺失的字体列表
     private readonly Dictionary<string, List<FontCheckResult>> _stillMissingResults = new(StringComparer.OrdinalIgnoreCase);
+    // MText 内联字体修复记录
     private readonly Dictionary<string, List<InlineFontFixRecord>> _inlineFontFixResults = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
     private DocumentContextManager() { }
 
+    /// <summary>检查指定文档是否已执行过字体替换。doc 为 null 或已释放时返回 true（视为已处理，跳过执行）。</summary>
     public bool HasExecuted(Document doc)
     {
         if (doc == null) return true;
@@ -37,6 +48,7 @@ internal sealed class DocumentContextManager
         }
     }
 
+    /// <summary>标记指定文档已完成字体替换，后续不再重复执行。</summary>
     public void MarkExecuted(Document doc)
     {
         if (doc == null) return;
@@ -48,6 +60,7 @@ internal sealed class DocumentContextManager
         }
     }
 
+    /// <summary>移除指定文档的所有跟踪数据（执行记录 + 检测结果），并重置日志头状态。通常在文档关闭时调用。</summary>
     public void Remove(Document doc)
     {
         if (doc == null) return;
@@ -63,6 +76,7 @@ internal sealed class DocumentContextManager
         LogService.Instance.ResetHeaderForDocument(key);
     }
 
+    /// <summary>清空所有文档的跟踪数据。通常在插件卸载时调用。</summary>
     public void Clear()
     {
         lock (_lock)
