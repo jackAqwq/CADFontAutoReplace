@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AFR.Models;
+using AFR.Services;
 
 namespace AFR.UI;
 
@@ -105,8 +106,11 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
     public bool HasItems => Items.Count > 0;
     public bool HasNoItems => !HasItems && !HasInlineFix;
 
-    /// <summary>批量操作可选的 SHX 字体列表。</summary>
-    public ObservableCollection<string> AvailableShxFonts { get; }
+    /// <summary>批量操作可选的 SHX 主字体列表（常规字体）。</summary>
+    public ObservableCollection<string> AvailableMainFonts { get; }
+
+    /// <summary>批量操作可选的 SHX 大字体列表。</summary>
+    public ObservableCollection<string> AvailableBigFonts { get; }
 
     /// <summary>批量操作可选的 TrueType 字体列表。</summary>
     public ObservableCollection<string> AvailableTrueTypeFonts { get; }
@@ -155,9 +159,13 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
         IReadOnlyList<InlineFontFixRecord>? inlineFixResults = null,
         HashSet<string>? stillMissingStyleNames = null)
     {
-        var shxFonts = new ObservableCollection<string>(FontSelectionViewModel.ScanAvailableFonts());
+        // 触发扫描（确保 FontCache 已填充）
+        FontSelectionViewModel.EnsureFontCachePopulated();
+        var mainFonts = new ObservableCollection<string>(FontManager.GetMainFontSnapshot());
+        var bigFonts = new ObservableCollection<string>(FontManager.GetBigFontSnapshot());
         var ttFonts = new ObservableCollection<string>(FontSelectionViewModel.ScanSystemTrueTypeFonts());
-        AvailableShxFonts = shxFonts;
+        AvailableMainFonts = mainFonts;
+        AvailableBigFonts = bigFonts;
         AvailableTrueTypeFonts = ttFonts;
 
         if (detectionResults != null && detectionResults.Count > 0)
@@ -189,7 +197,7 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
                     string missingName = r.IsTrueType
                         ? (!string.IsNullOrEmpty(r.TypeFace) ? r.TypeFace : r.FileName)
                         : r.FileName;
-                    var fonts = r.IsTrueType ? ttFonts : shxFonts;
+                    var fonts = r.IsTrueType ? ttFonts : mainFonts;
 
                     // 优先使用当前实际字体，全局配置作为兜底
                     string replacement;
@@ -231,7 +239,7 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
 
                     var row = new FontReplacementRow(
                         r.StyleName, "SHX大字体", r.BigFontFileName,
-                        false, true, isReplaced, shxFonts, replacement);
+                        false, true, isReplaced, bigFonts, replacement);
                     bigCount++;
 
                     if (isReplaced) { replacedBig.Add(row); replacedCount++; }

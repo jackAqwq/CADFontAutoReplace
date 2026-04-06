@@ -355,37 +355,14 @@ internal static class LdFileHook
 
     /// <summary>
     /// 扫描所有可能包含字体文件的目录，构建可用字体集合。
-    /// 扫描范围：AutoCAD 安装目录 Fonts → 用户支持路径 → 系统 TrueType 字族名 → Windows 系统字体目录。
+    /// 扫描范围：通过 <see cref="CadEnvironmentSettings.GetAllFontSearchPaths"/> 获取统一路径列表，
+    /// 再补充系统 TrueType 字族名。
     /// </summary>
     private static void ScanAvailableFonts()
     {
-        // AutoCAD 安装目录 Fonts
-        try
-        {
-            var acdbModule = System.Diagnostics.Process.GetCurrentProcess().Modules
-                .Cast<System.Diagnostics.ProcessModule>()
-                .FirstOrDefault(m => m.ModuleName?.Equals(AcDbDll, StringComparison.OrdinalIgnoreCase) == true);
-
-            if (acdbModule?.FileName != null)
-            {
-                string fontsDir = Path.Combine(Path.GetDirectoryName(acdbModule.FileName)!, "Fonts");
-                ScanDirectory(fontsDir);
-            }
-        }
-        catch { }
-
-        // 用户支持路径
-        try
-        {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            foreach (string dir in Directory.GetDirectories(
-                Path.Combine(appData, "Autodesk"), "AutoCAD *", SearchOption.TopDirectoryOnly))
-            {
-                foreach (string supportDir in Directory.GetDirectories(dir, "Support", SearchOption.AllDirectories))
-                    ScanDirectory(supportDir);
-            }
-        }
-        catch { }
+        // 统一路径扫描：SHX + TTF/TTC 文件
+        foreach (var dir in CadEnvironmentSettings.GetAllFontSearchPaths())
+            ScanDirectory(dir);
 
         // 系统 TrueType 字族名 — 同步扫描，确保 Hook 拦截前数据就绪
         // ldfile 可能收到字族名（如 "宋体"）而非文件名（simsun.ttc），
@@ -405,14 +382,6 @@ internal static class LdFileHook
             DiagnosticLogger.Log("FontMapping", $"系统字体扫描失败: {ex.Message}");
         }
         DiagnosticLogger.Log("FontMapping", $"可用字体 {_availableFonts.Count} 项 (系统字族名 {_availableFonts.Count - beforeCount} 项)");
-
-        // Windows 系统字体目录 — ldfile 可能收到系统字体文件名（如 simsun.ttc），
-        // 这些文件位于 C:\Windows\Fonts 而非 AutoCAD 目录，必须扫描以避免误重定向。
-        try
-        {
-            ScanDirectory(Environment.GetFolderPath(Environment.SpecialFolder.Fonts));
-        }
-        catch { }
     }
 
     /// <summary>

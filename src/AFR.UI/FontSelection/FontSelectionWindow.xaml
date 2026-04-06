@@ -61,7 +61,7 @@
                     <ComboBox IsEditable="True" IsTextSearchEnabled="True" Height="30"
                               hc:InfoElement.Placeholder="搜索或选择 SHX 字体..."
                               Style="{StaticResource ComboBoxExtend}"
-                              ItemsSource="{Binding AvailableFonts}"
+                              ItemsSource="{Binding AvailableMainFonts}"
                               Text="{Binding SelectedMainFont, UpdateSourceTrigger=PropertyChanged}"
                               Loaded="OnComboBoxLoaded"/>
                 </StackPanel>
@@ -82,7 +82,7 @@
                     <ComboBox IsEditable="True" IsTextSearchEnabled="True" Height="30"
                               hc:InfoElement.Placeholder="搜索或选择大字体..."
                               Style="{StaticResource ComboBoxExtend}"
-                              ItemsSource="{Binding AvailableFonts}"
+                              ItemsSource="{Binding AvailableBigFonts}"
                               Text="{Binding SelectedBigFont, UpdateSourceTrigger=PropertyChanged}"
                               Loaded="OnComboBoxLoaded"/>
                 </StackPanel>

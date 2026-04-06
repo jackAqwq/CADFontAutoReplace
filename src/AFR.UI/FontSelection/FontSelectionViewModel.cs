@@ -17,8 +17,11 @@ internal sealed class FontSelectionViewModel : INotifyPropertyChanged
     private string _selectedBigFont = string.Empty;
     private string _selectedTrueTypeFont = string.Empty;
 
-    /// <summary>当前 CAD Fonts 目录下可用的 SHX 字体列表。</summary>
-    public ObservableCollection<string> AvailableFonts { get; }
+    /// <summary>当前 CAD Fonts 目录下可用的 SHX 主字体列表（常规字体）。</summary>
+    public ObservableCollection<string> AvailableMainFonts { get; }
+
+    /// <summary>当前 CAD Fonts 目录下可用的 SHX 大字体列表。</summary>
+    public ObservableCollection<string> AvailableBigFonts { get; }
 
     /// <summary>系统已安装的 TrueType 中文字体列表。</summary>
     public ObservableCollection<string> AvailableTrueTypeFonts { get; }
@@ -62,18 +65,21 @@ internal sealed class FontSelectionViewModel : INotifyPropertyChanged
 
     public FontSelectionViewModel()
     {
-        AvailableFonts = new ObservableCollection<string>(ScanAvailableFonts());
+        // 触发扫描（首次调用时同步填充 FontCache，后续调用返回缓存）
+        EnsureFontCachePopulated();
+        AvailableMainFonts = new ObservableCollection<string>(FontManager.GetMainFontSnapshot());
+        AvailableBigFonts = new ObservableCollection<string>(FontManager.GetBigFontSnapshot());
         AvailableTrueTypeFonts = new ObservableCollection<string>(ScanSystemTrueTypeFonts());
         LoadCurrentConfig();
     }
 
     /// <summary>
-    /// 通过 PlatformManager.FontScanner 获取可用 SHX 字体。
+    /// 确保 FontCache 已填充。通过 PlatformManager.FontScanner 触发扫描，
+    /// 副作用是同步填充 <see cref="FontManager.FontCache"/>。
     /// </summary>
-    internal static IReadOnlyCollection<string> ScanAvailableFonts()
+    internal static void EnsureFontCachePopulated()
     {
-        return PlatformManager.FontScanner?.ScanAvailableShxFonts()
-            ?? Array.Empty<string>();
+        PlatformManager.FontScanner?.ScanAvailableShxFonts();
     }
 
     /// <summary>
