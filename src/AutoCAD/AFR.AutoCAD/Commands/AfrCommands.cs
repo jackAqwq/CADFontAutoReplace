@@ -202,9 +202,9 @@ public class AfrCommands
 
             DiagnosticLogger.Info("AFRLOG", $"窗口关闭: AppliedCount={window.AppliedCount}");
 
-            if (window.AppliedCount > 0)
+            if (window.LastAppliedReplacements != null && window.LastAppliedReplacements.Count > 0)
             {
-                log.Info($"已替换 {window.AppliedCount} 个样式的字体。");
+                log.AddReplacementStatistics(window.LastAppliedReplacements);
             }
         }
         catch (System.Exception ex)
@@ -273,23 +273,36 @@ public class AfrCommands
         {
             var context = new FontDetectionContext(doc.Database);
 
+            // 读取数据库中各样式当前实际字体，用于与新配置比较，跳过未变更的字体
+            var currentFonts = FontDetector.ReadCurrentFontAssignments(doc.Database);
+
             // 将原始检测结果转换为 StyleFontReplacement 列表
-            // 每个原本缺失的样式都用新配置的字体覆盖
+            // 仅当新配置的字体与当前实际字体不同时才纳入替换
             var replacements = new List<StyleFontReplacement>();
             for (int i = 0; i < storedResults.Count; i++)
             {
                 var r = storedResults[i];
+                currentFonts.TryGetValue(r.StyleName, out var current);
+
                 if (r.IsTrueType)
                 {
-                    if (r.IsMainFontMissing && !string.IsNullOrEmpty(config.TrueTypeFont))
+                    if (r.IsMainFontMissing && !string.IsNullOrEmpty(config.TrueTypeFont)
+                        && !string.Equals(config.TrueTypeFont, current.TypeFace, StringComparison.OrdinalIgnoreCase))
                         replacements.Add(new StyleFontReplacement(r.StyleName, true, config.TrueTypeFont, string.Empty));
                 }
                 else
                 {
-                    if (r.IsMainFontMissing && !string.IsNullOrEmpty(config.MainFont))
-                        replacements.Add(new StyleFontReplacement(r.StyleName, false, config.MainFont, config.BigFont));
-                    else if (r.IsBigFontMissing && !string.IsNullOrEmpty(config.BigFont))
-                        replacements.Add(new StyleFontReplacement(r.StyleName, false, string.Empty, config.BigFont));
+                    // 逐槽位判断：仅当新配置字体与当前实际字体不同时才填入替换值
+                    string mainFont = (r.IsMainFontMissing && !string.IsNullOrEmpty(config.MainFont)
+                        && !string.Equals(config.MainFont, current.FileName, StringComparison.OrdinalIgnoreCase))
+                        ? config.MainFont : string.Empty;
+                    string bigFont = (r.IsBigFontMissing && !string.IsNullOrEmpty(config.BigFont)
+                        && !string.Equals(config.BigFont, current.BigFontFileName, StringComparison.OrdinalIgnoreCase))
+                        ? config.BigFont : string.Empty;
+
+                    // 主字体和大字体都未变更时跳过该样式
+                    if (!string.IsNullOrEmpty(mainFont) || !string.IsNullOrEmpty(bigFont))
+                        replacements.Add(new StyleFontReplacement(r.StyleName, false, mainFont, bigFont));
                 }
             }
 
@@ -322,7 +335,7 @@ public class AfrCommands
             if (replaceCount > 0) doc.Editor.Regen();
 
             // 输出统计（不含 MText 内联扫描）
-            log.AddStatistics(storedResults, stillMissingSlotCount);
+            log.AddReplacementStatistics(replacements, stillMissingSlotCount);
             contextMgr.MarkExecuted(doc);
         }
     }

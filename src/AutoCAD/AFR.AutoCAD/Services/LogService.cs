@@ -116,6 +116,58 @@ internal sealed class LogService : ILogService
     }
 
     /// <summary>
+    /// 根据实际执行的替换指令列表生成统计消息并写入缓冲区。
+    /// <para>
+    /// 与 <see cref="AddStatistics"/> 不同，本方法从 <see cref="StyleFontReplacement"/> 列表计数，
+    /// 仅统计本次实际替换的类型，括号中只包含 count > 0 的类型。
+    /// 用于 AFR 命令重新配置和 AFRLOG 手动替换的日志输出。
+    /// </para>
+    /// </summary>
+    /// <param name="replacements">本次实际执行的替换指令列表。</param>
+    /// <param name="stillMissingCount">替换后仍然缺失的字体数量，为 0 表示全部替换成功。</param>
+    public void AddReplacementStatistics(IReadOnlyList<StyleFontReplacement> replacements, int stillMissingCount = 0)
+    {
+        int shxCount = 0, bigFontCount = 0, trueTypeCount = 0;
+        for (int i = 0; i < replacements.Count; i++)
+        {
+            var r = replacements[i];
+            if (r.IsTrueType)
+            {
+                if (!string.IsNullOrEmpty(r.MainFontReplacement)) trueTypeCount++;
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(r.MainFontReplacement)) shxCount++;
+                if (!string.IsNullOrEmpty(r.BigFontReplacement)) bigFontCount++;
+            }
+        }
+
+        int total = shxCount + bigFontCount + trueTypeCount;
+        if (total == 0) return;
+
+        // 动态拼接括号内容：仅包含本次实际替换的类型
+        var parts = new List<string>(3);
+        if (shxCount > 0) parts.Add($"SHX主字体:{shxCount}");
+        if (bigFontCount > 0) parts.Add($"SHX大字体:{bigFontCount}");
+        if (trueTypeCount > 0) parts.Add($"TrueType:{trueTypeCount}");
+
+        int replaced = total - stillMissingCount;
+        string msg;
+        if (stillMissingCount > 0)
+            msg = $"[字体修复]重新替换缺失字体 {total} 个，成功 {replaced} 个({string.Join(",", parts)})";
+        else
+            msg = $"[字体修复]已重新替换缺失字体 {total} 个({string.Join(",", parts)})";
+
+        lock (_lock)
+        {
+            _buffer.Add((LogCategory.Statistics, msg, DateTime.Now));
+        }
+
+        if (stillMissingCount > 0)
+            AddEntry(LogCategory.Warning, $"仍有 {stillMissingCount} 个字体未成功替换，请执行 AFRLOG 手动指定替换字体");
+    }
+
+    /// <summary>
     /// 将一条日志条目添加到缓冲区（线程安全）。
     /// 所有公开的 Info/Warning/Error 方法最终都通过此方法写入缓冲区。
     /// </summary>

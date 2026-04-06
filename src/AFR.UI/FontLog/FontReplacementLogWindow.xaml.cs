@@ -20,6 +20,9 @@ public partial class FontReplacementLogWindow : Window
     /// <summary>累计成功替换的样式数量。</summary>
     public int AppliedCount { get; private set; }
 
+    /// <summary>最近一次应用替换时的替换指令列表，供调用方生成统计日志。</summary>
+    public IReadOnlyList<StyleFontReplacement>? LastAppliedReplacements { get; private set; }
+
     /// <summary>
     /// 替换操作回调。接收替换列表，返回成功替换的数量。
     /// 由调用方提供平台特定的实现（如 AutoCAD 的文档锁定与字体替换）。
@@ -68,8 +71,10 @@ public partial class FontReplacementLogWindow : Window
 
             if (map.Count > 0)
             {
-                int count = ApplyReplacementsHandler(map.Values.ToList());
+                var list = map.Values.ToList();
+                int count = ApplyReplacementsHandler(list);
                 AppliedCount += count;
+                LastAppliedReplacements = list;
                 DiagnosticLogger.Info("UI", $"Handler 返回: {count}, 累计 AppliedCount={AppliedCount}");
             }
         }
