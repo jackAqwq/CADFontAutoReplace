@@ -13,6 +13,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)FontMapping\AutoCadFontHook.cs" Link="FontMapping\AutoCadFontHook.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FontMapping\LdFileHook.cs" Link="FontMapping\LdFileHook.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FontMapping\MTextFontParser.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FontMapping\MTextInlineFontReplacer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FontMapping\MTextInlineFontScanner.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Hosting\AppInitializer.cs" Link="Hosting\AppInitializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Hosting\AutoCadHost.cs" Link="Hosting\AutoCadHost.cs" />

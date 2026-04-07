@@ -112,10 +112,15 @@ internal sealed class ExecutionController
                 // 与 Hook 重定向记录交叉比对，精确识别被修复的内联字体。
                 DiagnosticLogger.BeginPhase("扫描MText内联字体");
                 var inlineFonts = MTextInlineFontScanner.ScanInlineFonts(doc.Database);
+
+                // 将缺失 TrueType \f 转换为 SHX \F，使后续渲染走 ldfile → Hook 统一管理
+                var ttfFixRecords = MTextInlineFontReplacer.ConvertMissingTrueTypeToShx(
+                    doc.Database, inlineFonts, context,
+                    config.MainFont, config.BigFont);
+
                 var redirectLog = LdFileHook.GetRawRedirectLog();
 
                 #if DEBUG
-                // 诊断: 记录交叉比对的两侧数据，便于排查匹配失败原因
                 if (inlineFonts.Count > 0)
                 {
                     foreach (var (name, type) in inlineFonts)
@@ -128,10 +133,19 @@ internal sealed class ExecutionController
                 }
 #endif
 
-                var inlineFixResults = BuildInlineFixRecords(inlineFonts, redirectLog);
+                // SHX 修复记录来自 Hook 重定向日志，TrueType 修复记录来自 \f→\F 转换
+                var shxFixRecords = BuildInlineFixRecords(inlineFonts, redirectLog);
+                var inlineFixResults = new List<InlineFontFixRecord>(shxFixRecords.Count + ttfFixRecords.Count);
+                inlineFixResults.AddRange(shxFixRecords);
+                inlineFixResults.AddRange(ttfFixRecords);
+
                 contextMgr.StoreInlineFontFixResults(doc, inlineFixResults);
                 DiagnosticLogger.EndPhase($"内联字体: {inlineFonts.Count}个, 修复: {inlineFixResults.Count}个");
 
+                // TrueType→SHX 转换修改了 MText.Contents，需要 Regen 刷新
+                if (ttfFixRecords.Count > 0)
+                    doc.Editor.Regen();
+            
                 // 统计汇总 — Regen 之后输出，确保统计信息是最后一行实质内容
                 if (missingFonts.Count > 0 || inlineFixResults.Count > 0)
                     log.AddStatistics(missingFonts, stillMissingSlotCount, inlineFixResults.Count);
