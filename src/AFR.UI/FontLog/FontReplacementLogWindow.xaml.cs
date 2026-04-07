@@ -170,7 +170,14 @@ public partial class FontReplacementLogWindow : Window
 
     /// <summary>
     /// 根据当前滚动位置决定显示哪组粘性标题。
-    /// 当 MText 标题滚动到覆盖层底部时，切换为 MText 标题。
+    /// <para>
+    /// 向下滚动：MText 标题完全滚出视口顶部（Y≤0）时切换为 MText 粘性标题，
+    /// 实现无缝过渡（用户看到 MText 标题自然向上移动并被覆盖层接管）。
+    /// </para>
+    /// <para>
+    /// 向上滚动：MText 标题下移到覆盖层下方（Y&gt;0）时切换回样式表粘性标题，
+    /// 确保样式表最后一行数据可见。
+    /// </para>
     /// </summary>
     private void UpdateStickyHeader()
     {
@@ -208,17 +215,16 @@ public partial class FontReplacementLogWindow : Window
         {
             // MText 标题相对于 ScrollViewer 视口顶部的 Y 坐标
             var mtextPos = MTextHeaderMarker.TransformToAncestor(ContentScroll).Transform(new Point(0, 0));
-            double stickyHeight = StickyHeaderOverlay.ActualHeight;
 
-            if (mtextPos.Y <= stickyHeight)
+            if (mtextPos.Y <= 0)
             {
-                // MText 标题已滚入粘性区域 → 切换为 MText 标题
+                // MText 标题已完全滚出视口顶部 → 切换为 MText 粘性标题
                 StickyStyleHeader.Visibility = Visibility.Collapsed;
                 StickyMTextHeader.Visibility = Visibility.Visible;
             }
             else
             {
-                // MText 标题尚未到达 → 显示样式表标题
+                // MText 标题仍在视口内或下方 → 显示样式表粘性标题
                 StickyStyleHeader.Visibility = Visibility.Visible;
                 StickyMTextHeader.Visibility = Visibility.Collapsed;
             }

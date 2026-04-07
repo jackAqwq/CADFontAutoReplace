@@ -302,7 +302,7 @@
 							</StackPanel>
 
 							<!-- ─── MText 区块 ─── -->
-							<StackPanel x:Name="MTextSection" Margin="0,8,0,0"
+							<StackPanel x:Name="MTextSection"
 										Visibility="{Binding HasInlineFix, Converter={StaticResource BoolToVis}}">
 								<!-- MText 标题（在滚动区内，用于位置检测） -->
 								<Border x:Name="MTextHeaderMarker"
