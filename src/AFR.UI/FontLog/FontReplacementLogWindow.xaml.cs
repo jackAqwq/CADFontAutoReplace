@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using AFR.Models;
 using AFR.Platform;
 using AFR.Services;
@@ -109,27 +111,11 @@ public partial class FontReplacementLogWindow : Window
         // ComboBox 下拉列表打开时，让其内部 ScrollViewer 处理滚动
         if (_comboBoxDropDownOpen) return;
 
-        if (sender is System.Windows.Controls.ScrollViewer scrollViewer)
+        if (sender is ScrollViewer scrollViewer)
         {
-            // 动态探测真实行高（ComboBox 和 Padding 会将行高撑到 30px 或随 DPI 变化）
-            double rowHeight = 30.0;
-
-            if (scrollViewer.Content is System.Windows.Controls.StackPanel stackPanel &&
-                stackPanel.Children.Count > 0 && 
-                stackPanel.Children[0] is System.Windows.Controls.ItemsControl itemsControl &&
-                itemsControl.Items.Count > 0)
-            {
-                var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(0) as FrameworkElement;
-                if (container != null && container.ActualHeight > 0)
-                {
-                    rowHeight = container.ActualHeight;
-                }
-            }
-
-            // 每次滚动 3 行的真实高度
+            double rowHeight = GetRowHeight();
             double step = rowHeight * 3.0;
 
-            // 计算新的偏移量并修正到整行边界
             double newOffset = scrollViewer.VerticalOffset - Math.Sign(e.Delta) * step;
             newOffset = Math.Round(newOffset / rowHeight) * rowHeight;
 
@@ -141,32 +127,107 @@ public partial class FontReplacementLogWindow : Window
         }
     }
 
+    /// <summary>动态获取单行真实行高（从样式表或 MText 数据行中探测）。</summary>
+    private double GetRowHeight()
+    {
+        // 优先从样式表数据行探测
+        if (StyleDataRows.Items.Count > 0)
+        {
+            var container = StyleDataRows.ItemContainerGenerator.ContainerFromIndex(0) as FrameworkElement;
+            if (container != null && container.ActualHeight > 0)
+                return container.ActualHeight;
+        }
+        return 30.0;
+    }
+
     private void OnTableLoaded(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.ScrollViewer scrollViewer &&
-            scrollViewer.Content is System.Windows.Controls.StackPanel stackPanel &&
-            stackPanel.Children.Count > 0 &&
-            stackPanel.Children[0] is System.Windows.Controls.ItemsControl itemsControl)
+        if (sender is ScrollViewer scrollViewer)
         {
-            // 延缓到底层 UI 完全渲染后，以提取真实的物理像素高度
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (itemsControl.Items.Count == 0) return;
-
-                // 动态获取单行真实行高（因 DPI 缩放、字体渲染引擎可能略有波动），30 DIP 兜底
-                double rowHeight = 30.0;
-                if (itemsControl.ItemContainerGenerator.ContainerFromIndex(0) is FrameworkElement container
-                    && container.ActualHeight > 0)
-                {
-                    rowHeight = container.ActualHeight;
-                }
+                double rowHeight = GetRowHeight();
 
                 // 理想显示 12 行，但不超过屏幕可用空间
-                // 预留 ~200 DIP 给标题、状态条、表头、按钮栏等固定 UI 区域
+                // 预留 ~200 DIP 给标题、状态条、按钮栏等固定 UI 区域
                 double idealHeight = Math.Ceiling(rowHeight * 12.0);
                 double maxAvailable = SystemParameters.WorkArea.Height - 200.0;
-                scrollViewer.Height = Math.Min(idealHeight, Math.Max(maxAvailable, rowHeight * 4.0));
+                scrollViewer.MaxHeight = Math.Min(idealHeight, Math.Max(maxAvailable, rowHeight * 4.0));
+
+                // 初始化粘性标题状态
+                UpdateStickyHeader();
             }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+    }
+
+    /// <summary>
+    /// 滚动事件：根据 MText 标题在视口中的位置切换粘性标题。
+    /// </summary>
+    private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        UpdateStickyHeader();
+    }
+
+    /// <summary>
+    /// 根据当前滚动位置决定显示哪组粘性标题。
+    /// 当 MText 标题滚动到覆盖层底部时，切换为 MText 标题。
+    /// </summary>
+    private void UpdateStickyHeader()
+    {
+        var vm = ViewModel;
+        bool hasStyle = vm.HasItems;
+        bool hasMText = vm.HasInlineFix;
+
+        if (!hasStyle && !hasMText) return;
+
+        // 仅样式表：始终显示样式表标题
+        if (hasStyle && !hasMText)
+        {
+            StickyStyleHeader.Visibility = Visibility.Visible;
+            StickyMTextHeader.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // 仅 MText：始终显示 MText 标题
+        if (!hasStyle && hasMText)
+        {
+            StickyStyleHeader.Visibility = Visibility.Collapsed;
+            StickyMTextHeader.Visibility = Visibility.Visible;
+            return;
+        }
+
+        // 两者都有：根据 MText 标题位置切换
+        if (!MTextHeaderMarker.IsLoaded || !ContentScroll.IsLoaded)
+        {
+            StickyStyleHeader.Visibility = Visibility.Visible;
+            StickyMTextHeader.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        try
+        {
+            // MText 标题相对于 ScrollViewer 视口顶部的 Y 坐标
+            var mtextPos = MTextHeaderMarker.TransformToAncestor(ContentScroll).Transform(new Point(0, 0));
+            double stickyHeight = StickyHeaderOverlay.ActualHeight;
+
+            if (mtextPos.Y <= stickyHeight)
+            {
+                // MText 标题已滚入粘性区域 → 切换为 MText 标题
+                StickyStyleHeader.Visibility = Visibility.Collapsed;
+                StickyMTextHeader.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                // MText 标题尚未到达 → 显示样式表标题
+                StickyStyleHeader.Visibility = Visibility.Visible;
+                StickyMTextHeader.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // TransformToAncestor 在元素不在可视树中时抛出异常
+            StickyStyleHeader.Visibility = Visibility.Visible;
+            StickyMTextHeader.Visibility = Visibility.Collapsed;
         }
     }
 
