@@ -36,7 +36,11 @@ public partial class FontReplacementLogWindow : Window
         ViewModel = vm;
         DataContext = vm;
         InitializeComponent();
-        MaxHeight = SystemParameters.WorkArea.Height;
+
+        // 确保窗口不超过屏幕可用高度
+        double workArea = SystemParameters.WorkArea.Height;
+        if (Height > workArea)
+            Height = workArea;
     }
 
     private void OnApply(object sender, RoutedEventArgs e)
@@ -142,19 +146,10 @@ public partial class FontReplacementLogWindow : Window
 
     private void OnTableLoaded(object sender, RoutedEventArgs e)
     {
-        if (sender is ScrollViewer scrollViewer)
+        if (sender is ScrollViewer)
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                double rowHeight = GetRowHeight();
-
-                // 理想显示 12 行，但不超过屏幕可用空间
-                // 预留 ~200 DIP 给标题、状态条、按钮栏等固定 UI 区域
-                double idealHeight = Math.Ceiling(rowHeight * 12.0);
-                double maxAvailable = SystemParameters.WorkArea.Height - 200.0;
-                scrollViewer.MaxHeight = Math.Min(idealHeight, Math.Max(maxAvailable, rowHeight * 4.0));
-
-                // 初始化粘性标题状态
                 UpdateStickyHeader();
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
