@@ -53,7 +53,7 @@
 
 ### 🔄 安全可靠
 - 替换后二次验证，确认替换字体确实可用
-- 仅修改当前图纸的字体引用，不改变原始文件内容
+- 仅修改当前图纸内存中的字体引用，不自动保存文件
 - 提供 `AFRUNLOAD` 一键完整卸载
 
 </td>
@@ -68,12 +68,8 @@
 <td align="center"><b>AFRLOG 命令 — 替换日志</b></td>
 </tr>
 <tr>
-<td align="center">
-<img src="https://splrad-img.oss-cn-chengdu.aliyuncs.com/20260407005000713.jpg" height="400" style="border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
-</td>
-<td align="center">
-<img src="https://splrad-img.oss-cn-chengdu.aliyuncs.com/20260407005034079.jpg" height="400" style="border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.15);" />
-</td>
+<td align="center"><img src="https://splrad-img.oss-cn-chengdu.aliyuncs.com/20260407005000713.jpg" width="380" /></td>
+<td align="center"><img src="https://splrad-img.oss-cn-chengdu.aliyuncs.com/20260407005034079.jpg" width="380" /></td>
 </tr>
 </table>
 
