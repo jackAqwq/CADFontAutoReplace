@@ -81,6 +81,7 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
     private string _batchShxFont = string.Empty;
     private string _batchBigFont = string.Empty;
     private string _batchTrueTypeFont = string.Empty;
+    private bool _hasUserChanges;
 
     public ObservableCollection<FontReplacementRow> Items { get; } = new();
     public ObservableCollection<InlineFontFixRecord> InlineFixItems { get; } = new();
@@ -106,6 +107,13 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
     public bool HasItems => Items.Count > 0;
     public bool HasNoItems => !HasItems && !HasInlineFix;
     public bool HasAnyContent => HasItems || HasInlineFix;
+
+    /// <summary>是否有任何行的替换字体被用户修改过（与初始值不同）。</summary>
+    public bool HasUserChanges
+    {
+        get => _hasUserChanges;
+        private set { if (_hasUserChanges != value) { _hasUserChanges = value; OnPropertyChanged(); } }
+    }
 
     /// <summary>批量操作可选的 SHX 主字体列表（常规字体）。</summary>
     public ObservableCollection<string> AvailableMainFonts { get; }
@@ -273,10 +281,19 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
             SummaryText = "未检测到缺失字体";
         }
 
-        // 内联字体修复记录
+        // 监听每行的 SelectedReplacement 变化，驱动 HasUserChanges 更新
+        foreach (var row in Items)
+            row.PropertyChanged += OnRowPropertyChanged;
+
+        // 内联字体修复记录（按类型排序：SHX主字体 → SHX大字体 → TrueType）
         if (inlineFixResults != null)
         {
-            foreach (var r in inlineFixResults)
+            foreach (var r in inlineFixResults.OrderBy(r => r.FontCategory switch
+            {
+                "SHX主字体" => 0,
+                "SHX大字体" => 1,
+                _ => 2   // TrueType、TrueType→SHX 等
+            }))
                 InlineFixItems.Add(r);
             InlineFixCount = inlineFixResults.Count;
 
@@ -285,6 +302,24 @@ public sealed class FontReplacementLogViewModel : INotifyPropertyChanged
             else if (InlineFixCount > 0)
                 SummaryText += $" · 内联修复 {InlineFixCount} 项";
         }
+    }
+
+    private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FontReplacementRow.SelectedReplacement))
+            HasUserChanges = EvaluateHasUserChanges();
+    }
+
+    private bool EvaluateHasUserChanges()
+    {
+        foreach (var row in Items)
+        {
+            string current = row.SelectedReplacement?.Trim() ?? string.Empty;
+            string original = row.OriginalReplacement?.Trim() ?? string.Empty;
+            if (!string.Equals(current, original, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

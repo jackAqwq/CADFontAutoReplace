@@ -198,6 +198,48 @@ public class AfrCommands
                     return count;
                 }
             };
+
+            // 注册刷新回调：应用替换后重新检测并构建新 ViewModel
+            window.RefreshHandler = () =>
+            {
+                List<FontCheckResult> freshResults;
+                HashSet<string>? freshMissing = null;
+                Dictionary<string, (string FileName, string BigFontFileName, string TypeFace)>? freshFonts = null;
+
+                using (doc.LockDocument())
+                {
+                    var freshContext = new FontDetectionContext(doc.Database);
+                    var currentMissing = FontDetector.DetectMissingFonts(freshContext);
+
+                    var stored = DocumentContextManager.Instance.GetDetectionResults(doc);
+                    if (stored != null && stored.Count > 0)
+                    {
+                        freshResults = stored;
+                        freshMissing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        for (int i = 0; i < currentMissing.Count; i++)
+                            freshMissing.Add(currentMissing[i].StyleName);
+                    }
+                    else
+                    {
+                        freshResults = currentMissing;
+                        if (currentMissing.Count > 0)
+                        {
+                            freshMissing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            for (int i = 0; i < currentMissing.Count; i++)
+                                freshMissing.Add(currentMissing[i].StyleName);
+                        }
+                    }
+
+                    if (freshResults.Count > 0)
+                        freshFonts = FontDetector.ReadCurrentFontAssignments(doc.Database);
+                }
+
+                var freshInline = DocumentContextManager.Instance.GetInlineFontFixResults(doc);
+                return new FontReplacementLogViewModel(
+                    freshResults, config.MainFont, config.BigFont, config.TrueTypeFont,
+                    freshFonts, freshInline, freshMissing);
+            };
+
             PlatformManager.Host.ShowModalWindow(window);
 
             DiagnosticLogger.Info("AFRLOG", $"窗口关闭: AppliedCount={window.AppliedCount}");

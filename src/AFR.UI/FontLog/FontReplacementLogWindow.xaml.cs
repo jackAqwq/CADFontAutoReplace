@@ -31,6 +31,12 @@ public partial class FontReplacementLogWindow : Window
     /// </summary>
     public Func<IReadOnlyList<StyleFontReplacement>, int>? ApplyReplacementsHandler { get; set; }
 
+    /// <summary>
+    /// 刷新回调。应用替换成功后调用，返回新的 ViewModel 以刷新界面。
+    /// 由调用方提供平台特定的实现（如重新检测缺失字体并构建新 ViewModel）。
+    /// </summary>
+    public Func<FontReplacementLogViewModel>? RefreshHandler { get; set; }
+
     public FontReplacementLogWindow(FontReplacementLogViewModel vm)
     {
         ViewModel = vm;
@@ -82,6 +88,21 @@ public partial class FontReplacementLogWindow : Window
                 AppliedCount += count;
                 LastAppliedReplacements = list;
                 DiagnosticLogger.Info("UI", $"Handler 返回: {count}, 累计 AppliedCount={AppliedCount}");
+
+                // 替换成功后刷新界面（重新检测并重建 ViewModel）
+                if (count > 0 && RefreshHandler != null)
+                {
+                    try
+                    {
+                        var newVm = RefreshHandler();
+                        DataContext = newVm;
+                        DiagnosticLogger.Info("UI", $"刷新完成: Items={newVm.Items.Count} 未替换={newVm.FailedCount}");
+                    }
+                    catch (Exception refreshEx)
+                    {
+                        DiagnosticLogger.LogError("UI 刷新失败", refreshEx);
+                    }
+                }
             }
         }
         catch (Exception ex)

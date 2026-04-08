@@ -4,7 +4,7 @@
         xmlns:hc="https://handyorg.github.io/handycontrol"
 		Title="AFR — 字体替换日志"
 		Width="610" Height="650"
-		WindowStartupLocation="CenterOwner"
+		WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStyle="None"
@@ -412,20 +412,21 @@
 			<!-- 底部：左侧批量操作 + 右侧按钮 -->
 			<DockPanel Grid.Row="6">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="应用替换"
-                            MinWidth="80" Height="32" FontSize="12"
-                            Margin="0,0,10,0"
-                            Style="{StaticResource ButtonPrimary}"
-                            hc:BorderElement.CornerRadius="6"
-                            IsEnabled="{Binding HasItems}"
-                            Click="OnApply"/>
+					<Button Content="应用替换"
+							MinWidth="80" Height="32" FontSize="12"
+							Margin="0,0,10,0"
+							Style="{StaticResource ButtonPrimary}"
+							hc:BorderElement.CornerRadius="6"
+							IsEnabled="{Binding HasUserChanges}"
+							Click="OnApply"/>
                     <Button Content="关闭"
                             MinWidth="80" Height="32" FontSize="12"
                             hc:BorderElement.CornerRadius="6"
                             Click="OnClose"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                            Visibility="{Binding HasItems, Converter={StaticResource BoolToVis}}">
+				<StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+							IsEnabled="{Binding HasItems}"
+							Visibility="{Binding HasAnyContent, Converter={StaticResource BoolToVis}}">
 					<ComboBox Width="110" Height="28" IsEditable="True" IsTextSearchEnabled="True"
 							  IsEnabled="{Binding HasShx}"
 							  BorderBrush="#999"
